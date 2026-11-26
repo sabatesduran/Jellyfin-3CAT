@@ -113,7 +113,7 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
             if (_catalog is { } current && current.Fresh) return current.Items;
             try
             {
-                var programs = await _client.ListAllProgramsAsync(ct).ConfigureAwait(false);
+                var programs = await _client.ListCompleteProgramsAsync(ct).ConfigureAwait(false);
                 var fresh = programs.Where(p => p.HasVideo && DynamicIds.Valid(p.Id))
                     .DistinctBy(p => p.Id, StringComparer.Ordinal)
                     .Select(p => new ChannelItemInfo
@@ -148,7 +148,7 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
             if (Episodes.TryGetValue(program, out cached) && cached.Fresh) return cached.Items;
             try
             {
-                var page = await _client.GetProgramVideosAsync(program, 0, ct).ConfigureAwait(false);
+                var page = await _client.GetProgramVideosAsync(program, 0, ct, requireComplete: true).ConfigureAwait(false);
                 if (page.Items.Count == 0) throw new InvalidOperationException("No s'ha pogut carregar el programa de 3Cat.");
                 var videos = page.Items.Where(v => DynamicIds.Valid(v.Id))
                     .OrderBy(v => v.Broadcast ?? v.Published ?? DateTimeOffset.MinValue)
