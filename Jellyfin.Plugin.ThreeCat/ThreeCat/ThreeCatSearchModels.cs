@@ -74,6 +74,9 @@ public sealed class ThreeCatSearchProgram
     [JsonPropertyName("titol")]
     public string? Title { get; set; }
 
+    [JsonPropertyName("descripcio")]
+    public string? Description { get; set; }
+
     /// <summary>
     /// Gets or sets the slug of the program page (<c>doraemon-el-gat-cosmic</c>).
     /// </summary>
@@ -157,4 +160,5 @@ public sealed record ThreeCatCatalogProgram(
     bool HasVideo,
     string? Category = null,
     bool Children = false,
-    string? ImageUrl = null);
+    string? ImageUrl = null,
+    string? Description = null);
