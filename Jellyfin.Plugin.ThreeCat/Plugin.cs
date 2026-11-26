@@ -57,6 +57,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     CultureInfo.InvariantCulture,
                     "{0}.Configuration.configPage.html",
                     GetType().Namespace)
+            },
+            new PluginPageInfo
+            {
+                Name = "3CatBrowse",
+                DisplayName = "Explora 3Cat",
+                EmbeddedResourcePath = "Jellyfin.Plugin.ThreeCat.Configuration.browsePage.html"
             }
         ];
     }
