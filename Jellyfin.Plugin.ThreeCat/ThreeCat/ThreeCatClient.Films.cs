@@ -15,7 +15,7 @@ public sealed partial class ThreeCatClient
         {
             var url = string.Format(CultureInfo.InvariantCulture, FilmsUrl, page);
             var response = (await GetJsonAsync<ThreeCatEnvelope>(url, ct).ConfigureAwait(false))?.Response;
-            if (response?.Items?.Items is not { Count: > 0 } batch)
+            if (response?.Items?.Items is not { Count: > 0 } batch || !string.Equals(response.Status, "OK", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("3Cat: catàleg de cinema buit o incomplet.");
             pages = Math.Max(1, response.Pagination?.TotalPages ?? page);
             if (pages > MaxPages) throw new InvalidOperationException("3Cat: massa pàgines de cinema.");
@@ -25,8 +25,9 @@ public sealed partial class ThreeCatClient
                 throw new InvalidOperationException("3Cat: falten pel·lícules al catàleg.");
         }
 
-        // A film facet can include trailers and clips. Follow the upstream duration rule.
-        return items.Values.Where(v => v.Duration >= TimeSpan.FromMinutes(60)
+        // The live film facet contains both genuine shorts (including 5-minute films) and
+        // explicitly titled trailers. Runtime is not a valid discriminator for short films.
+        return items.Values.Where(v => DynamicFilmPolicy.IsFilm(v)
             && (v.Expires is null || v.Expires > DateTimeOffset.UtcNow)).ToArray();
     }
 }
