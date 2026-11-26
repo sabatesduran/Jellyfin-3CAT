@@ -47,6 +47,12 @@ public sealed class ThreeCatRefreshTask : IScheduledTask
     public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        if (configuration.DisableLegacyMirror)
+        {
+            progress.Report(100);
+            return Task.CompletedTask;
+        }
+
         return _syncService.RunAsync(configuration, progress, cancellationToken);
     }
 
