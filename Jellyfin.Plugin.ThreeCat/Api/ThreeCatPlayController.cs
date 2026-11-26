@@ -74,6 +74,14 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// <param name="value">Program id or URL of one of its videos.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The resolved program, or 404 when the reference does not point at any program.</returns>
+    [HttpGet("Dynamic/Status")]
+    [Authorize(Policy = "RequiresElevation")]
+    public IActionResult DynamicCatalogueStatus()
+    {
+        var status = DynamicStatus.Current;
+        return Ok(new { status.LastSuccess, status.Programmes, status.Films, status.Sx3, status.State, status.Error });
+    }
+
     [HttpGet("Programs/Resolve")]
     public async Task<ActionResult<ThreeCatProgramSummary>> ResolveAsync(
         [FromQuery] string? value,
