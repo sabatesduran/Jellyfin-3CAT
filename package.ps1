@@ -31,7 +31,7 @@ if (-not $Version) {
 }
 
 Write-Host "Compilando $project ($Configuration)..." -ForegroundColor Cyan
-dotnet build $project -c $Configuration --nologo -v minimal "-p:ThreeCatTargetFramework=$TargetFramework" "-p:ThreeCatJellyfinVersion=$JellyfinVersion"
+dotnet build $project -c $Configuration --nologo -v minimal "-p:ThreeCatTargetFramework=$TargetFramework" "-p:ThreeCatJellyfinVersion=$JellyfinVersion" "-p:Version=$Version" "-p:AssemblyVersion=$Version" "-p:FileVersion=$Version"
 if ($LASTEXITCODE -ne 0) {
     throw "La compilacion ha fallado (codigo $LASTEXITCODE)."
 }
