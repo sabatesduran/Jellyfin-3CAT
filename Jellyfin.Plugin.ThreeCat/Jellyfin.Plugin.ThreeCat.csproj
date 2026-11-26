@@ -31,7 +31,7 @@
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\browsePage.html" />
-    <EmbeddedResource Include="Portal/*" />
+    <EmbeddedResource Include="Portal/index.html;Portal/portal.js;Portal/portal.css" />
   </ItemGroup>
 
 </Project>
