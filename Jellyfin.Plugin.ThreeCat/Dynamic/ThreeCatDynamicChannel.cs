@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Net;
+using System.Text.RegularExpressions;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.Library;
@@ -20,7 +23,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.ThreeCat.Dynamic;
 
 /// <summary>Native, on-demand 3Cat channel. No STRM files are needed.</summary>
-public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback
+public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback
 {
     private readonly ThreeCatClient _client;
     private readonly IMediaEncoder _encoder;
@@ -40,23 +43,24 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         _logger = logger;
     }
 
-    public string Name => "3Cat a la carta";
-    public string Description => "Catàleg de 3Cat amb episodis sota demanda.";
+    protected virtual bool ChildrenOnly => false;
+    public virtual string Name => "3Cat a la carta";
+    public virtual string Description => "Catàleg de 3Cat amb episodis sota demanda.";
     public string DataVersion => "1";
     public string HomePageUrl => "https://www.3cat.cat/3cat/";
     public ChannelParentalRating ParentalRating => ChannelParentalRating.UsR;
-    public bool IsEnabledFor(string userId) => Plugin.Instance?.Configuration.DynamicCatalogue == true;
+    public virtual bool IsEnabledFor(string userId) => Plugin.Instance?.Configuration.DynamicCatalogue == true;
     public string GetCacheKey(string? userId) => (DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 1800).ToString(CultureInfo.InvariantCulture);
 
     public InternalChannelFeatures GetChannelFeatures() => new()
     {
         MediaTypes = [ChannelMediaType.Video],
-        ContentTypes = [ChannelMediaContentType.Episode],
+        ContentTypes = ChildrenOnly ? [ChannelMediaContentType.Episode] : [ChannelMediaContentType.Episode, ChannelMediaContentType.Movie],
         SupportsContentDownloading = false
     };
 
-    public IEnumerable<ImageType> GetSupportedChannelImages() => ThreeCatChannelArtwork.Supported;
-    public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
+    public virtual IEnumerable<ImageType> GetSupportedChannelImages() => ThreeCatChannelArtwork.Supported;
+    public virtual Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
         => Task.FromResult(ThreeCatChannelArtwork.Get(type));
 
     public async Task<ChannelItemResult> GetChannelItems(InternalChannelItemQuery query, CancellationToken cancellationToken)
@@ -67,6 +71,14 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
 
         IReadOnlyList<ChannelItemInfo> items;
         var folder = query.FolderId;
+        if (ChildrenOnly && !string.IsNullOrEmpty(folder))
+        {
+            if (!folder.StartsWith("sx3:", StringComparison.Ordinal)) throw new ArgumentException("Identificador SX3 no vàlid.");
+            folder = folder[4..];
+            if ((!DynamicIds.TryProgram(folder, out var childProgram) && !DynamicIds.TrySeason(folder, out childProgram, out _))
+                || !(await GetCatalogueAsync(cancellationToken).ConfigureAwait(false)).Any(p => p.Id == DynamicIds.Program(childProgram) && p.Tags.Contains("SX3")))
+                throw new ArgumentException("Programa fora del catàleg SX3.");
+        }
         if (string.IsNullOrEmpty(folder))
         {
             items = await GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
@@ -107,6 +119,9 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
                     PremiereDate = e.Aired?.UtcDateTime,
                     RunTimeTicks = e.Duration?.Ticks,
                     ImageUrl = e.Image!,
+                    Overview = e.Overview!,
+                    DateCreated = e.Aired?.UtcDateTime,
+                    EndDate = e.Expires?.UtcDateTime,
                     ProviderIds = new Dictionary<string, string> { ["threecat"] = e.Id }
                 }).ToArray();
         }
@@ -115,7 +130,20 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
             throw new ArgumentException("Identificador de carpeta 3Cat no vàlid.");
         }
 
+        if (ChildrenOnly)
+        {
+            if (string.IsNullOrEmpty(folder)) items = items.Where(p => p.Type == ChannelItemType.Folder && p.Tags.Contains("SX3")).ToArray();
+            items = items.Select(PrefixChildItem).ToArray();
+        }
         return new ChannelItemResult { Items = items, TotalRecordCount = items.Count };
+    }
+
+    private static ChannelItemInfo PrefixChildItem(ChannelItemInfo item)
+    {
+        // Root metadata belongs to the shared cache. Copy it before adding the channel namespace.
+        var copy = JsonSerializer.Deserialize<ChannelItemInfo>(JsonSerializer.Serialize(item))!;
+        copy.Id = "sx3:" + item.Id;
+        return copy;
     }
 
     private async Task<string> GetProgrammeNameAsync(string program, CancellationToken ct)
@@ -131,6 +159,7 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         await CatalogGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (_catalog is null) _catalog = ReadDiskCatalogue();
             if (_catalog is { } current && current.Fresh) return current.Items;
             try
             {
@@ -155,26 +184,89 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
                         Type = ChannelItemType.Folder, FolderType = ChannelFolderType.Series,
                         MediaType = ChannelMediaType.Video, HomePageUrl = p.Url!,
                         ImageUrl = p.ImageUrl!,
+                        Overview = PlainText(p.Description)!,
+                        Tags = p.Children ? ["SX3"] : [],
                         Genres = GetProgrammeGenres(p, taxonomy),
                         Studios = string.IsNullOrWhiteSpace(p.Channel) ? [] : [p.Channel],
                         PremiereDate = DateTime.TryParseExact(p.Published, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var published) ? published.ToUniversalTime() : null,
                         ProviderIds = new Dictionary<string, string> { ["threecat"] = p.Id }
                     }).ToArray();
                 if (fresh.Length == 0) throw new InvalidOperationException("Catàleg de 3Cat buit o no disponible.");
-                var merged = (_catalog?.Items ?? []).Concat(fresh)
-                    .GroupBy(p => p.Id, StringComparer.Ordinal).Select(g => g.Last())
-                    .OrderBy(p => p.Name, StringComparer.Create(CultureInfo.GetCultureInfo("ca-ES"), true)).ToArray();
+                var films = (_catalog?.Items ?? []).Where(p => p.ContentType == ChannelMediaContentType.Movie && (p.EndDate is null || p.EndDate > DateTime.UtcNow)).ToArray();
+                string? filmError = null;
+                try
+                {
+                    var videos = await _client.ListFilmsAsync(ct).ConfigureAwait(false);
+                    films = videos.Where(v => DynamicIds.Valid(v.Id)).Select(v => new ChannelItemInfo
+                    {
+                        Id = DynamicIds.Film(v.Id!), Name = v.Title ?? v.FriendlyName ?? v.Id!,
+                        Type = ChannelItemType.Media, MediaType = ChannelMediaType.Video,
+                        ContentType = ChannelMediaContentType.Movie, Genres = ["Cinema"],
+                        Overview = PlainText(v.Description)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
+                        PremiereDate = (v.Broadcast ?? v.Published)?.UtcDateTime,
+                        DateCreated = v.Published?.UtcDateTime, EndDate = v.Expires?.UtcDateTime, RunTimeTicks = v.Duration?.Ticks,
+                        ProviderIds = new Dictionary<string, string> { ["threecat"] = v.Id! }
+                    }).ToArray();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    filmError = "No s'ha pogut actualitzar el cinema.";
+                    _logger.LogWarning(ex, "3Cat: es conserva el cinema anterior.");
+                    // Do not reconcile a partial root after restart if the film snapshot is missing.
+                    if (_catalog is null) throw;
+                }
+                var merged = fresh.Concat(films).OrderBy(p => p.Name,
+                    StringComparer.Create(CultureInfo.GetCultureInfo("ca-ES"), true)).ToArray();
                 _catalog = new Snapshot<ChannelItemInfo>(DateTimeOffset.UtcNow + Ttl, merged);
+                WriteDiskCatalogue(_catalog);
+                DynamicStatus.Success(fresh.Length, films.Length, fresh.Count(p => p.Tags.Contains("SX3")));
+                if (filmError is not null) DynamicStatus.Failure(filmError);
                 return merged;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && _catalog is not null)
             {
+                DynamicStatus.Failure("No s'ha pogut actualitzar el catàleg. Es conserva la còpia anterior.");
                 _logger.LogWarning(ex, "3Cat: es conserva el catàleg anterior.");
                 return _catalog.Items;
             }
         }
         finally { CatalogGate.Release(); }
     }
+
+    private string CataloguePath => Path.Combine(_paths.CachePath, "3cat-dynamic-catalogue.json");
+
+    private Snapshot<ChannelItemInfo>? ReadDiskCatalogue()
+    {
+        try
+        {
+            if (!File.Exists(CataloguePath) || new FileInfo(CataloguePath).Length > 32_000_000) return null;
+            var snapshot = JsonSerializer.Deserialize<Snapshot<ChannelItemInfo>>(File.ReadAllText(CataloguePath));
+            if (snapshot?.Items is not { Count: > 0 }) return null;
+            return snapshot;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            _logger.LogWarning(ex, "3Cat: no s'ha pogut llegir la memòria cau.");
+            return null;
+        }
+    }
+
+    private void WriteDiskCatalogue(Snapshot<ChannelItemInfo> snapshot)
+    {
+        var temporary = CataloguePath + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(_paths.CachePath);
+            File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot));
+            File.Move(temporary, CataloguePath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            _logger.LogWarning(ex, "3Cat: no s'ha pogut desar la memòria cau.");
+        }
+    }
+
+    private static string? PlainText(string? html) => string.IsNullOrWhiteSpace(html) ? null : WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]+>", string.Empty)).Trim();
 
     private static List<string> GetProgrammeGenres(ThreeCatCatalogProgram program, IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy)
     {
@@ -205,10 +297,9 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
                 var slots = EpisodeNumbering.Assign(titles);
                 var fresh = videos.Select((v, i) => new EpisodeEntry(v.Id!, slots[i].Season, slots[i].Episode, slots[i].Part,
                     EpisodeNumbering.StripNumber(titles[i] ?? v.Id!), v.Broadcast ?? v.Published, v.Expires, v.Duration,
-                    ThreeCatSyncService.PickThumbnail(v, null), slots[i].IsDuplicate))
+                    ThreeCatSyncService.PickThumbnail(v, null), slots[i].IsDuplicate, PlainText(v.Description)))
                     .Where(e => !e.Duplicate).ToArray();
-                var merged = (cached?.Items ?? []).Concat(fresh).GroupBy(e => e.Id, StringComparer.Ordinal)
-                    .Select(g => g.Last()).ToArray();
+                var merged = fresh;
                 if (Episodes.Count >= 128 && !Episodes.ContainsKey(program))
                 {
                     var oldest = Episodes.OrderBy(x => x.Value.Expires).FirstOrDefault();
@@ -228,13 +319,22 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
 
     public async Task<IEnumerable<MediaSourceInfo>> GetChannelItemMediaInfo(string id, CancellationToken cancellationToken)
     {
-        if (!IsEnabledFor(string.Empty) || !DynamicIds.TryVideo(id, out var video)) return [];
+        if (!IsEnabledFor(string.Empty)) return [];
+        var originalId = id;
+        if (ChildrenOnly)
+        {
+            if (!id.StartsWith("sx3:", StringComparison.Ordinal)) return [];
+            id = id[4..];
+            var parts = id.Split(':');
+            if (parts.Length != 3 || !(await GetCatalogueAsync(cancellationToken).ConfigureAwait(false)).Any(p => p.Id == DynamicIds.Program(parts[1]) && p.Tags.Contains("SX3"))) return [];
+        }
+        if (!DynamicIds.TryVideo(id, out var video) && (ChildrenOnly || !DynamicIds.TryFilm(id, out video))) return [];
         var media = await _client.GetMediaAsync(video, cancellationToken).ConfigureAwait(false);
         var url = ThreeCatClient.PickFile(media);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return [];
         var source = new MediaSourceInfo
         {
-            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id)))[..32].ToLowerInvariant(),
+            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(originalId)))[..32].ToLowerInvariant(),
             Path = uri.AbsoluteUri, Name = "3Cat", Protocol = MediaProtocol.Http,
             Container = "mp4", IsRemote = true, RunTimeTicks = media?.Info?.Duration?.Ticks,
             SupportsDirectPlay = false, SupportsDirectStream = true, SupportsTranscoding = true, SupportsProbing = true
@@ -250,6 +350,7 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
                 MediaSource = source, MediaType = DlnaProfileType.Video, ExtractChapters = false
             }, timeout.Token).ConfigureAwait(false);
             source.MediaStreams = info.MediaStreams;
+            source.SupportsDirectPlay = info.MediaStreams.Any(s => s.Type == MediaStreamType.Video) && !string.IsNullOrWhiteSpace(info.Container);
             source.Container = info.Container ?? source.Container;
             source.Formats = info.Formats;
             source.Bitrate = info.Bitrate;
@@ -314,5 +415,5 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
     }
 
     private sealed record EpisodeEntry(string Id, int Season, int Number, int Part, string Title,
-        DateTimeOffset? Aired, DateTimeOffset? Expires, TimeSpan? Duration, string? Image, bool Duplicate);
+        DateTimeOffset? Aired, DateTimeOffset? Expires, TimeSpan? Duration, string? Image, bool Duplicate, string? Overview);
 }
