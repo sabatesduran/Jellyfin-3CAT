@@ -55,9 +55,9 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         SupportsContentDownloading = false
     };
 
-    public IEnumerable<ImageType> GetSupportedChannelImages() => [];
+    public IEnumerable<ImageType> GetSupportedChannelImages() => ThreeCatChannelArtwork.Supported;
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
-        => Task.FromResult(new DynamicImageResponse { HasImage = false });
+        => Task.FromResult(ThreeCatChannelArtwork.Get(type));
 
     public async Task<ChannelItemResult> GetChannelItems(InternalChannelItemQuery query, CancellationToken cancellationToken)
     {
