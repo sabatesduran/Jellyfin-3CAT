@@ -43,6 +43,12 @@ if (-not (Test-Path $dll)) {
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 
+$artworkSource = Get-Content -Raw (Join-Path $projectDir 'Dynamic/ThreeCatChannelArtwork.cs')
+$artworkMatch = [regex]::Match($artworkSource, 'FromBase64String\("([A-Za-z0-9+/=]+)"\)')
+if (-not $artworkMatch.Success) { throw 'Missing channel artwork' }
+$artwork = Join-Path $dist '3cat.png'
+[System.IO.File]::WriteAllBytes($artwork, [Convert]::FromBase64String($artworkMatch.Groups[1].Value))
+
 $zip = Join-Path $dist "threecat_$Version.zip"
 if (Test-Path $zip) {
     Remove-Item $zip -Force
@@ -53,6 +59,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::Open($zip, 'Create')
 try {
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $dll, 'Jellyfin.Plugin.ThreeCat.dll') | Out-Null
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $artwork, '3cat.png') | Out-Null
 } finally {
     $archive.Dispose()
 }
