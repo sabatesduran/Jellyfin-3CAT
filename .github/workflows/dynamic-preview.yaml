@@ -66,5 +66,6 @@ jobs:
           git add manifest-preview.json
           if ! git diff --cached --quiet; then
             git commit -m 'Publish verified build to preview catalogue'
+            git pull --rebase origin feature/dynamic-catalogue
             git push origin HEAD:feature/dynamic-catalogue
           fi
