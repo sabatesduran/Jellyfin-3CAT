@@ -30,6 +30,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
 
         serviceCollection.AddSingleton<ThreeCatSyncService>();
         serviceCollection.AddSingleton<IScheduledTask, ThreeCatRefreshTask>();
+        serviceCollection.AddSingleton<IScheduledTask, Dynamic.ThreeCatDynamicIndexTask>();
     }
 
     private static void ConfigureClient(HttpClient client, string baseAddress)
