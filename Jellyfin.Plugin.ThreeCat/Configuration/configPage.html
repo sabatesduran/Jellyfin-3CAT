@@ -349,6 +349,7 @@
                     </div>
                     <p class="threeCatMuted" id="ThreeCatLastSuccess"></p>
                     <p class="threeCatMuted" id="ThreeCatHealthError"></p>
+                    <button type="button" id="ThreeCatExportDiagnostics" class="raised emby-button">Exporta diagnòstic (sense secrets)</button>
                     <button is="emby-button" type="button" id="ThreeCatRefreshStatus" class="raised"><span>Comprova l'estat</span></button>
                 </section>
                 <section class="threeCatPanel" id="ThreeCatCommonSettings" aria-labelledby="ThreeCatPlaybackTitle">
@@ -876,6 +877,19 @@
             function threeCatLoadVersion() {
                 var portal = document.getElementById("ThreeCatPortalOpen");
                 if (portal) portal.onclick = function () { window.open(ApiClient.getUrl("ThreeCat/Explore/"), "_blank", "noopener,noreferrer"); };
+                var diagnostics = document.querySelector('#ThreeCatExportDiagnostics');
+                if (diagnostics) diagnostics.onclick = async function () {
+                    try {
+                        var result = await ApiClient.getJSON(threeCatUrl('Dynamic/Diagnostics'));
+                        var blob = new Blob([JSON.stringify(result, null, 2)], {type:'application/json'});
+                        var url = URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = '3cat-diagnostics.json';
+                        a.click();
+                        setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+                    } catch (e) { threeCatStatus('No s’ha pogut exportar el diagnòstic.'); }
+                };
                 var live = document.querySelector('#ThreeCatInstallLive');
                 var guide = document.querySelector('#ThreeCatInstallGuide');
                 if (live) live.onclick = function () { threeCatInstallLive(false); };
