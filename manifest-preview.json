@@ -8,6 +8,22 @@
     "category": "General",
     "versions": [
       {
+        "version": "2.0.0.1",
+        "changelog": "3Cat 2.0: web portal, incremental catalogue, metadata, films, playback variants and diagnostics.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0/threecat_2.0.0.1.zip",
+        "checksum": "0EF7E9CDCB0CB2E1578FBFDA13A9E52C",
+        "timestamp": "2026-11-26T21:26:14Z"
+      },
+      {
+        "version": "2.0.0.0",
+        "changelog": "3Cat 2.0: web portal, incremental catalogue, metadata, films, playback variants and diagnostics.",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0/threecat_2.0.0.0.zip",
+        "checksum": "288D64E143ED8C86F6A0CF5C15FB3A2D",
+        "timestamp": "2026-11-26T21:26:14Z"
+      },
+      {
         "version": "1.14.0.1",
         "changelog": "Dedicated web catalogue and plugin artwork. Runtime validation pending.",
         "targetAbi": "10.11.0.0",
@@ -16,6 +32,6 @@
         "timestamp": "2026-11-26T20:43:27Z"
       }
     ],
-    "imageUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.14.0.1/3cat.png"
+    "imageUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0/3cat.png"
   }
 ]
