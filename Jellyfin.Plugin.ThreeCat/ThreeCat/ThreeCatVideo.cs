@@ -41,6 +41,19 @@ public sealed class ThreeCatVideo
     [JsonPropertyName("descripcio")]
     public string? Description { get; set; }
 
+    [JsonPropertyName("tipologia")]
+    public string? Typology { get; set; }
+
+    [JsonPropertyName("avantitol")]
+    public string? Antetitle { get; set; }
+
+    [JsonPropertyName("entradeta")]
+    public string? Summary { get; set; }
+
+    [JsonPropertyName("formats")]
+    [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
+    public List<ThreeCatLabel>? Formats { get; set; }
+
     [JsonPropertyName("codis_etics")]
     [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
     public List<ThreeCatLabel>? AgeRatings { get; set; }
