@@ -625,6 +625,16 @@
 
                 <div class="verticalSection">
                     <h2 class="sectionTitle">Opciones</h2>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDynamicCatalogue" />
+                        <span>3Cat a la carta: catàleg virtual automàtic</span>
+                    </label>
+                    <div class="fieldDescription">Mostra els programes sense importar-los. Reinicia Jellyfin després de desar.</div>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDisableLegacyMirror" />
+                        <span>Desactiva la sincronització de fitxers .strm</span>
+                    </label>
+                    <div class="fieldDescription">No elimina fitxers existents ni modifica altres biblioteques.</div>
 
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
@@ -2534,6 +2544,8 @@
                         threeCatField(config, 'tvdbApiKey') || '';
                     document.querySelector('#ThreeCatTvdbPin').value =
                         threeCatField(config, 'tvdbPin') || '';
+                    document.querySelector('#ThreeCatDynamicCatalogue').checked = threeCatField(config, 'dynamicCatalogue') === true;
+                    document.querySelector('#ThreeCatDisableLegacyMirror').checked = threeCatField(config, 'disableLegacyMirror') === true;
                     document.querySelector('#ThreeCatRefreshInterval').value =
                         threeCatInt(threeCatField(config, 'refreshIntervalHours'), 12);
                     document.querySelector('#ThreeCatMaxItems').value =
@@ -2599,6 +2611,8 @@
                     config.TmdbLanguage = document.querySelector('#ThreeCatTmdbLanguage').value.trim();
                     config.TvdbApiKey = document.querySelector('#ThreeCatTvdbApiKey').value.trim();
                     config.TvdbPin = document.querySelector('#ThreeCatTvdbPin').value.trim();
+                    config.DynamicCatalogue = document.querySelector('#ThreeCatDynamicCatalogue').checked;
+                    config.DisableLegacyMirror = document.querySelector('#ThreeCatDisableLegacyMirror').checked;
                     config.RefreshIntervalHours = threeCatInt(
                         document.querySelector('#ThreeCatRefreshInterval').value, 12);
                     config.MaxItemsPerProgram = threeCatInt(
