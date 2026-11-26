@@ -22,28 +22,28 @@ jobs:
         run: dotnet test --configuration Release --nologo
       - name: Package
         shell: pwsh
-        run: ./package.ps1 -Configuration Release -Version 1.13.0.0
+        run: ./package.ps1 -Configuration Release -Version 1.13.0.1
       - name: Publish preview
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dynamic-preview-1.13.0.0
+          tag_name: dynamic-preview-1.13.0.1
           target_commitish: ${{ github.sha }}
-          name: 3Cat a la carta 1.13.0.0 (experimental)
+          name: 3Cat a la carta 1.13.0.1 (experimental)
           prerelease: true
           fail_on_unmatched_files: true
-          files: dist/threecat_1.13.0.0.zip
-          body: Experimental Jellyfin 10.11 build. Compilation and automated tests passed; runtime validation is pending. Back up configuration before testing.
+          files: dist/threecat_1.13.0.1.zip
+          body: Experimental build with a Jellyfin 10.11/12 user enumeration compatibility fix. Compilation and automated tests passed; runtime validation is pending. Back up configuration before testing.
       - name: Generate preview manifest from the published ZIP
         run: |
           python3 - <<'PY'
           import hashlib, json, datetime, pathlib
-          package = pathlib.Path('dist/threecat_1.13.0.0.zip')
+          package = pathlib.Path('dist/threecat_1.13.0.1.zip')
           plugin = json.loads(pathlib.Path('manifest.json').read_text(encoding='utf-8'))[0]
           plugin['versions'] = [{
-              'version': '1.13.0.0',
-              'changelog': 'Experimental native 3Cat catalogue. Runtime validation pending.',
+              'version': '1.13.0.1',
+              'changelog': 'Fix user enumeration API compatibility and isolate favourite refresh. Runtime validation pending.',
               'targetAbi': '10.11.0.0',
-              'sourceUrl': 'https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.0/threecat_1.13.0.0.zip',
+              'sourceUrl': 'https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.1/threecat_1.13.0.1.zip',
               'checksum': hashlib.md5(package.read_bytes()).hexdigest().upper(),
               'timestamp': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
           }]
