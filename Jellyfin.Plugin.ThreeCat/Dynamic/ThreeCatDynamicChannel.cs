@@ -131,6 +131,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                     RunTimeTicks = e.Duration?.Ticks,
                     ImageUrl = e.Image!,
                     Overview = e.Overview!,
+                    OfficialRating = e.Rating!,
                     Tags = ExpiryTags(e.Expires),
                     DateCreated = e.Aired?.UtcDateTime,
                     EndDate = e.Expires?.UtcDateTime,
@@ -238,6 +239,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                         MediaType = ChannelMediaType.Video, HomePageUrl = p.Url!,
                         ImageUrl = p.ImageUrl!,
                         Overview = PlainText(p.Description)!,
+                        OfficialRating = DynamicAgeRating.FromDescription(p.AgeRating)!,
                         Tags = p.Children ? ["SX3"] : [],
                         Genres = GetProgrammeGenres(p, taxonomy, animeIds),
                         Studios = string.IsNullOrWhiteSpace(p.Channel) ? [] : [p.Channel],
@@ -256,7 +258,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                         Id = DynamicIds.Film(v.Id!), Name = v.Title ?? v.FriendlyName ?? v.Id!,
                         Type = ChannelItemType.Media, MediaType = ChannelMediaType.Video,
                         ContentType = ChannelMediaContentType.Movie, Genres = ["Cinema"], Tags = ExpiryTags(v.Expires),
-                        Overview = PlainText(v.Description)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
+                        Overview = PlainText(v.Description)!, OfficialRating = DynamicAgeRating.FromLabels(v.AgeRatings)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
                         PremiereDate = (v.Broadcast ?? v.Published)?.UtcDateTime,
                         DateCreated = v.Published?.UtcDateTime, EndDate = v.Expires?.UtcDateTime, RunTimeTicks = v.Duration?.Ticks,
                         ProviderIds = new Dictionary<string, string> { ["threecat"] = v.Id! }
@@ -359,7 +361,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                 var fresh = videos.Select((v, i) => new EpisodeEntry(v.Id!, slots[i].Season, slots[i].Episode, slots[i].Part,
                     EpisodeNumbering.StripNumber(titles[i] ?? v.Id!), v.Broadcast ?? v.Published, v.Expires, v.Duration,
                     ThreeCatSyncService.PickThumbnail(v, null), slots[i].IsDuplicate, PlainText(v.Description),
-                    DynamicEpisodePolicy.HasExplicitChildTarget(v)))
+                    DynamicEpisodePolicy.HasExplicitChildTarget(v), DynamicAgeRating.FromLabels(v.AgeRatings)))
                     .Where(e => !e.Duplicate).ToArray();
                 if (fresh.Length == 0) throw new InvalidOperationException("Resposta sense episodis vàlids.");
                 var reconciled = DynamicReconciliation.Merge(cached?.Items ?? [], fresh, cached?.Missing, e => e.Id);
@@ -526,5 +528,5 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
     }
 
     private sealed record EpisodeEntry(string Id, int Season, int Number, int Part, string Title,
-        DateTimeOffset? Aired, DateTimeOffset? Expires, TimeSpan? Duration, string? Image, bool Duplicate, string? Overview, bool ExplicitChild = false);
+        DateTimeOffset? Aired, DateTimeOffset? Expires, TimeSpan? Duration, string? Image, bool Duplicate, string? Overview, bool ExplicitChild = false, string? Rating = null);
 }
