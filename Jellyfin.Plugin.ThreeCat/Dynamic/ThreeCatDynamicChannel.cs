@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.Library;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
@@ -73,11 +74,13 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         else if (DynamicIds.TryProgram(folder, out var program))
         {
             var episodes = await GetEpisodesAsync(program, cancellationToken).ConfigureAwait(false);
+            var title = await GetProgrammeNameAsync(program, cancellationToken).ConfigureAwait(false);
             items = episodes.Where(IsAvailable).GroupBy(e => e.Season).OrderBy(g => g.Key)
                 .Select(g => new ChannelItemInfo
                 {
                     Id = DynamicIds.Season(program, g.Key),
                     Name = g.Key == 0 ? "Especials" : $"Temporada {g.Key}",
+                    SeriesName = title,
                     Type = ChannelItemType.Folder,
                     FolderType = ChannelFolderType.Season,
                     MediaType = ChannelMediaType.Video,
@@ -88,12 +91,14 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         else if (DynamicIds.TrySeason(folder, out program, out var season))
         {
             var episodes = await GetEpisodesAsync(program, cancellationToken).ConfigureAwait(false);
+            var title = await GetProgrammeNameAsync(program, cancellationToken).ConfigureAwait(false);
             items = episodes.Where(e => e.Season == season && IsAvailable(e))
                 .OrderBy(e => e.Number).ThenBy(e => e.Part).ThenBy(e => e.Id, StringComparer.Ordinal)
                 .Select(e => new ChannelItemInfo
                 {
                     Id = DynamicIds.Video(program, e.Id),
                     Name = e.Part > 0 ? $"{e.Title} (part {e.Part})" : e.Title,
+                    SeriesName = title,
                     Type = ChannelItemType.Media,
                     ContentType = ChannelMediaContentType.Episode,
                     MediaType = ChannelMediaType.Video,
@@ -111,6 +116,12 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         }
 
         return new ChannelItemResult { Items = items, TotalRecordCount = items.Count };
+    }
+
+    private async Task<string> GetProgrammeNameAsync(string program, CancellationToken ct)
+    {
+        var catalogue = await GetCatalogueAsync(ct).ConfigureAwait(false);
+        return catalogue.FirstOrDefault(p => p.Id == DynamicIds.Program(program))?.Name ?? program;
     }
 
     private static bool IsAvailable(EpisodeEntry entry) => entry.Expires is null || entry.Expires > DateTimeOffset.UtcNow;
