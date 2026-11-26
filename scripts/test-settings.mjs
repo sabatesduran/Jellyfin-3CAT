@@ -23,6 +23,7 @@ function harness(config = {}) {
             getPluginConfiguration: async () => structuredClone(config),
             updatePluginConfiguration: async (_, data) => { saved = JSON.parse(JSON.stringify(data)); },
             ajax: async () => {},
+            getJSON: async () => ({state:'ready',programmes:12,films:3,sx3:2}),
             getUrl: value => value
         }
     });
@@ -88,4 +89,17 @@ test('advanced settings remain accessible and can be saved in dynamic mode', asy
     assert.equal(result.DestinationPath,'/config/3cat');
     assert.equal(result.SeparateAnime,true);
     assert.equal(result.SeparateChildren,true);
+});
+
+
+test('dynamic controls persist independently of the manual library', async () => {
+    const {el, context, saved} = harness({dynamicCatalogue:true,disableLegacyMirror:true});
+    el('#ThreeCatMode').value = 'dynamic';
+    context.threeCatApplyMode();
+    el('#ThreeCatDynamicSx3').checked = true;
+    el('#ThreeCatDynamicQuality').value = '720';
+    await context.threeCatSave();
+    assert.equal(saved().DynamicSx3,true);
+    assert.equal(saved().DynamicQuality,'720');
+    assert.equal(el('#ThreeCatSx3Row').hidden,false);
 });
