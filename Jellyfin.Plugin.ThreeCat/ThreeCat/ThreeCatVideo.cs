@@ -38,6 +38,9 @@ public sealed class ThreeCatVideo
     [JsonPropertyName("titol")]
     public string? Title { get; set; }
 
+    [JsonPropertyName("descripcio")]
+    public string? Description { get; set; }
+
     /// <summary>
     /// Gets or sets the friendly name.
     /// </summary>
