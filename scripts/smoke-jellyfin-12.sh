@@ -20,7 +20,7 @@ test -s "$root/config/plugins/3Cat_$version/3cat.png"
 docker run -d --name "$name" --user 0:0 -p 127.0.0.1:18096:8096 \
   -v "$root/config:/config" -v "$root/cache:/cache"  "$image" >/dev/null
 for i in $(seq 1 90); do
-  if curl -fsS "$base/System/Info/Public" > "$root/public.json"; then break; fi
+  if curl -fsS "$base/System/Info/Public" > "$root/public.json" && curl -fsS -H "Authorization: $auth" "$base/Startup/User" >/dev/null; then break; fi
   sleep 2
 done
 jq -e --arg expected "$expected" '(.Version // .version // "") | startswith($expected)' "$root/public.json"
@@ -29,6 +29,7 @@ api() {
 }
 password="$(openssl rand -hex 24)"
 api "$base/Startup/User" >/dev/null
+api -X POST "$base/Startup/Configuration" -d '{"UICulture":"ca","MetadataCountryCode":"ES","PreferredMetadataLanguage":"ca"}' >/dev/null
 api -X POST "$base/Startup/User" -d "$(jq -nc --arg p "$password" '{Name:"threecat-ci",Password:$p}')" >/dev/null
 api -X POST "$base/Startup/Complete" >/dev/null
 token="$(api -X POST "$base/Users/AuthenticateByName" -d "$(jq -nc --arg p "$password" '{Username:"threecat-ci",Pw:$p}')" | jq -er '.AccessToken // .accessToken')"
@@ -37,4 +38,9 @@ authenticated() {
 }
 authenticated "$base/Plugins" | jq -e --arg version "$version" 'any(.[]; ((.Id // .id // "")|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and (.Version // .version)==$version)'
 authenticated "$base/ThreeCat/Dynamic/Status" | jq -e '.State // .state'
-echo "Plugin loads and administrator status endpoint responds."
+curl -fsS "$base/ThreeCat/Explore/" | grep -q "loginForm"
+curl -fsS "$base/ThreeCat/Explore/portal.js" > "$root/portal.js"
+grep -q "Users/AuthenticateByName" "$root/portal.js"
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$base/ThreeCat/Dynamic/Status")"
+[[ "$status" == 401 || "$status" == 403 ]]
+echo "Plugin loads, protected administrator API responds, and public portal assets are served."
