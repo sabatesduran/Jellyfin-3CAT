@@ -4,6 +4,8 @@ using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
@@ -16,13 +18,15 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
     private readonly IChannelManager _manager;
     private readonly ILibraryManager _library;
     private readonly IUserManager _users;
+    private readonly IProviderManager _providers;
     private readonly ILogger<ThreeCatDynamicIndexTask> _logger;
 
-    public ThreeCatDynamicIndexTask(IChannelManager manager, ILibraryManager library, IUserManager users, ILogger<ThreeCatDynamicIndexTask> logger)
+    public ThreeCatDynamicIndexTask(IChannelManager manager, ILibraryManager library, IUserManager users, IProviderManager providers, ILogger<ThreeCatDynamicIndexTask> logger)
     {
         _manager = manager;
         _library = library;
         _users = users;
+        _providers = providers;
         _logger = logger;
     }
 
@@ -41,6 +45,7 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
         var channels = await _manager.GetChannelsInternalAsync(new ChannelQuery()).ConfigureAwait(false);
         var channel = channels.Items.FirstOrDefault(c => c.Name == "3Cat a la carta");
         if (channel is null) throw new InvalidOperationException("Canal 3Cat no registrat. Reinicia Jellyfin.");
+        await EnsureChannelArtworkAsync(channel, cancellationToken).ConfigureAwait(false);
         await _manager.GetChannelItemsInternal(new InternalItemsQuery
         {
             ChannelIds = [channel.Id],
@@ -57,6 +62,41 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
             _logger.LogWarning(ex, "3Cat: catàleg indexat, però no s'han pogut actualitzar els preferits.");
         }
         progress.Report(100);
+    }
+
+    private async Task EnsureChannelArtworkAsync(Channel channel, CancellationToken cancellationToken)
+    {
+        var changed = false;
+        foreach (var type in ThreeCatChannelArtwork.Supported)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var current = channel.GetImageInfo(type, 0);
+                // Preserve custom images. Repair missing local files or an empty placeholder.
+                if (current is not null && !string.IsNullOrWhiteSpace(current.Path)
+                    && (Uri.TryCreate(current.Path, UriKind.Absolute, out var uri)
+                        && uri.Scheme is "http" or "https"
+                        || File.Exists(current.Path) && new FileInfo(current.Path).Length > 0))
+                {
+                    continue;
+                }
+
+                using var stream = ThreeCatChannelArtwork.Get(type).Stream;
+                await _providers.SaveImage(channel, stream, "image/png", type, 0, cancellationToken).ConfigureAwait(false);
+                changed = true;
+                _logger.LogInformation("3Cat: imatge del canal desada ({Type}).", type);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "3Cat: no s'ha pogut desar la imatge del canal ({Type}).", type);
+            }
+        }
+
+        if (changed)
+        {
+            await channel.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task RefreshFavouritesAsync(Channel channel, IProgress<double> progress, CancellationToken cancellationToken)
