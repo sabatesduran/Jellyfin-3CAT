@@ -6,6 +6,9 @@ on:
     branches: [feature/dynamic-catalogue]
 permissions:
   contents: read
+concurrency:
+  group: development-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     strategy:
@@ -16,10 +19,12 @@ jobs:
             sdk: 9.0.x
             jellyfin: 10.11.6
             prefix: '10.11'
+            image: jellyfin/jellyfin:10.11.6
           - framework: net10.0
             sdk: 10.0.x
             jellyfin: 12.2.0
             prefix: '12.2'
+            image: ghcr.io/jellyfin/jellyfin:12.2.20261005-225228
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +40,7 @@ jobs:
         run: ./package.ps1 -TargetFramework ${{ matrix.framework }} -JellyfinVersion ${{ matrix.jellyfin }}
       - name: Runtime smoke (isolated container)
         env:
-          JELLYFIN_IMAGE: jellyfin/jellyfin:${{ matrix.jellyfin }}
+          JELLYFIN_IMAGE: ${{ matrix.image }}
           EXPECTED_SERVER_PREFIX: ${{ matrix.prefix }}
         run: bash scripts/smoke-jellyfin-12.sh
       - uses: actions/upload-artifact@v4
