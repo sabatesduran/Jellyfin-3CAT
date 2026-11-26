@@ -398,7 +398,7 @@
                     <p class="threeCatMuted">Pots consultar i desar les opcions originals sense canviar el mode de funcionament. Les opcions de fitxers, carpetes i proveïdors externs només s’apliquen quan la biblioteca manual està activa.</p>
                     <div class="threeCatHint" id="ThreeCatManualModeHint" hidden>La biblioteca manual està desactivada. Els seus ajustos es conservaran per si la vols activar més endavant.</div>
                 <div class="verticalSection">
-                    <h2 class="sectionTitle">Opcions de la biblioteca manual</h2>
+                    <h2 class="sectionTitle">Opcions avançades</h2>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
                         <input is="emby-input" type="number" min="1" max="720" id="ThreeCatRefreshInterval" />
@@ -430,7 +430,7 @@
 
                     <label class="checkboxContainer">
                         <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateAnime" />
-                        <span>Separar el anime de la animación</span>
+                        <span>Separa l’anime de l’animació (tots dos modes)</span>
                     </label>
                     <div class="fieldDescription">
                         3Cat archiva el anime como animación y no publica ninguna etiqueta propia: «Bola de
@@ -446,7 +446,7 @@
 
                     <label class="checkboxContainer">
                         <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateChildren" />
-                        <span>Marcar los programas infantiles como «Infantil»</span>
+                        <span>Marca els programes infantils (tots dos modes)</span>
                     </label>
                     <div class="fieldDescription">
                         3Cat clasifica cada vídeo por público («Infantil», «Juvenil», «Tots els Públics») y con
@@ -2562,7 +2562,7 @@
 
             function threeCatLoadHealth() {
                 return ApiClient.getJSON(threeCatUrl('Dynamic/Status')).then(function (status) {
-                    var states = {ready:'Catàleg actualitzat',degraded:'Actualització parcial o error',not_started:'Encara no s’ha actualitzat'};
+                    var states = {ready:'Catàleg actualitzat',degraded:'Actualització parcial o error',not_started:'Encara no s’ha actualitzat',cached:'Catàleg carregat de la memòria cau'};
                     document.querySelector('#ThreeCatHealthState').textContent = states[threeCatField(status,'state')] || 'Estat desconegut';
                     ['Programme','Film','Sx3'].forEach(function (name) {
                         var key = {Programme:'programmes',Film:'films',Sx3:'sx3'}[name];
