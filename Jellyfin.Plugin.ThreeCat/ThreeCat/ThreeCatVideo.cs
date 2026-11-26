@@ -41,6 +41,10 @@ public sealed class ThreeCatVideo
     [JsonPropertyName("descripcio")]
     public string? Description { get; set; }
 
+    [JsonPropertyName("codis_etics")]
+    [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
+    public List<ThreeCatLabel>? AgeRatings { get; set; }
+
     /// <summary>
     /// Gets or sets the friendly name.
     /// </summary>
