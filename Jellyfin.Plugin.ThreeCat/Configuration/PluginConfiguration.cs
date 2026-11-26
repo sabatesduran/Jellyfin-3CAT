@@ -250,6 +250,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Enable the native virtual catalogue. Existing installations opt in.</summary>
     public bool DynamicCatalogue { get; set; }
 
+    /// <summary>Show a separate, optional SX3 browsing channel.</summary>
+    public bool DynamicSx3 { get; set; }
+
     /// <summary>Stop the legacy scheduled mirror without deleting existing files.</summary>
     public bool DisableLegacyMirror { get; set; }
 
