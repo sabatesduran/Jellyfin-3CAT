@@ -247,6 +247,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string DestinationPath { get; set; }
 
+    /// <summary>Enable the native virtual catalogue. Existing installations opt in.</summary>
+    public bool DynamicCatalogue { get; set; }
+
+    /// <summary>Stop the legacy scheduled mirror without deleting existing files.</summary>
+    public bool DisableLegacyMirror { get; set; }
+
     /// <summary>
     /// Gets or sets the refresh interval, in hours.
     /// </summary>
