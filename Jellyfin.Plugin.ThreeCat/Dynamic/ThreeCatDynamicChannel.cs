@@ -1,11 +1,16 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Channels;
+using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Dlna;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.MediaInfo;
 using Microsoft.Extensions.Logging;
@@ -16,6 +21,8 @@ namespace Jellyfin.Plugin.ThreeCat.Dynamic;
 public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback
 {
     private readonly ThreeCatClient _client;
+    private readonly IMediaEncoder _encoder;
+    private readonly IApplicationPaths _paths;
     private readonly ILogger<ThreeCatDynamicChannel> _logger;
     private static readonly SemaphoreSlim CatalogGate = new(1, 1);
     private static readonly SemaphoreSlim EpisodeGate = new(3, 3);
@@ -23,9 +30,11 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
     private static Snapshot<ChannelItemInfo>? _catalog;
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
 
-    public ThreeCatDynamicChannel(ThreeCatClient client, ILogger<ThreeCatDynamicChannel> logger)
+    public ThreeCatDynamicChannel(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths, ILogger<ThreeCatDynamicChannel> logger)
     {
         _client = client;
+        _encoder = encoder;
+        _paths = paths;
         _logger = logger;
     }
 
@@ -184,12 +193,80 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
         var media = await _client.GetMediaAsync(video, cancellationToken).ConfigureAwait(false);
         var url = ThreeCatClient.PickFile(media);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return [];
-        return [new MediaSourceInfo
+        var source = new MediaSourceInfo
         {
-            Id = video, Path = uri.AbsoluteUri, Name = "3Cat", Protocol = MediaProtocol.Http,
+            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id)))[..32].ToLowerInvariant(),
+            Path = uri.AbsoluteUri, Name = "3Cat", Protocol = MediaProtocol.Http,
             Container = "mp4", IsRemote = true, RunTimeTicks = media?.Info?.Duration?.Ticks,
             SupportsDirectPlay = false, SupportsDirectStream = true, SupportsTranscoding = true, SupportsProbing = true
-        }];
+        };
+
+        // Probe only when requested, rather than inventing codecs or probing the entire catalogue.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        try
+        {
+            var info = await _encoder.GetMediaInfo(new MediaInfoRequest
+            {
+                MediaSource = source, MediaType = DlnaProfileType.Video, ExtractChapters = false
+            }, timeout.Token).ConfigureAwait(false);
+            source.MediaStreams = info.MediaStreams;
+            source.Container = info.Container ?? source.Container;
+            source.Formats = info.Formats;
+            source.Bitrate = info.Bitrate;
+            source.RunTimeTicks ??= info.RunTimeTicks;
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "3Cat: no s'ha pogut analitzar el flux del vídeo {Video}.", video);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (Plugin.Instance?.Configuration.WriteSubtitles == true && media?.Subtitles is { Count: > 0 } tracks)
+        {
+            var streams = source.MediaStreams.ToList();
+            var nextIndex = streams.Select(s => s.Index).DefaultIfEmpty(-1).Max() + 1;
+            foreach (var track in ThreeCatSyncService.SelectSubtitleTracks(tracks))
+            {
+                // Only use HTTPS sources supplied by 3Cat. Local cache names never contain remote paths.
+                if (!Uri.TryCreate(track.Source, UriKind.Absolute, out var subtitleUri)
+                    || subtitleUri.Scheme != Uri.UriSchemeHttps
+                    || track.Language.Length is < 1 or > 8
+                    || !track.Language.All(char.IsAsciiLetterOrDigit)) continue;
+                try
+                {
+                    var directory = Path.Combine(_paths.CachePath, "3cat-dynamic-subtitles");
+                    Directory.CreateDirectory(directory);
+                    var filename = Path.Combine(directory, $"{video}.{track.Language}.vtt");
+                    if (!File.Exists(filename) || File.GetLastWriteTimeUtc(filename) < DateTime.UtcNow.AddDays(-1))
+                    {
+                        var vtt = await _client.GetStringAsync(subtitleUri.AbsoluteUri, cancellationToken).ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(vtt) || !vtt.TrimStart('\uFEFF', ' ', '\r', '\n').StartsWith("WEBVTT", StringComparison.Ordinal)
+                            || vtt.Length > 4_000_000) continue;
+                        var temp = filename + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                        try
+                        {
+                            await File.WriteAllTextAsync(temp, vtt, cancellationToken).ConfigureAwait(false);
+                            File.Move(temp, filename, overwrite: true);
+                        }
+                        finally { if (File.Exists(temp)) File.Delete(temp); }
+                    }
+                    streams.Add(new MediaStream
+                    {
+                        Type = MediaStreamType.Subtitle, Codec = "webvtt",
+                        Language = track.Language, Index = nextIndex++, Path = filename,
+                        IsExternal = true, IsExternalUrl = false, SupportsExternalStream = true
+                    });
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "3Cat: no s'ha pogut preparar un subtítol del vídeo {Video}.", video);
+                }
+            }
+            source.MediaStreams = streams;
+        }
+
+        return [source];
     }
 
     private sealed record Snapshot<T>(DateTimeOffset Expires, IReadOnlyList<T> Items)
