@@ -40,7 +40,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     /// <inheritdoc />
     public override string Description =>
-        "Genera una biblioteca de series a partir del catálogo a la carta de 3Cat (.strm + metadatos + subtítulos).";
+        "3Cat a la carta: catàleg virtual automàtic i mode de biblioteca .strm original.";
 
     /// <inheritdoc />
     public override Guid Id => Guid.Parse(PluginId);
