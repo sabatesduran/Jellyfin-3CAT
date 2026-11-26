@@ -1,0 +1,135 @@
+name: Publish dynamic catalogue preview
+on:
+  push:
+    branches: [feature/dynamic-catalogue]
+    paths: ['.github/workflows/dynamic-preview.yaml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dynamic-preview
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'sabatesduran/Jellyfin-3CAT' && github.ref == 'refs/heads/feature/dynamic-catalogue'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - framework: net9.0
+            sdk: 9.0.x
+            jellyfin: 10.11.6
+            prefix: '10.11'
+            image: jellyfin/jellyfin:10.11.6
+            version: 2.0.1.0
+          - framework: net10.0
+            sdk: 10.0.x
+            jellyfin: 12.2.0
+            prefix: '12.2'
+            image: ghcr.io/jellyfin/jellyfin:12.2.20261005-225228
+            version: 2.0.1.1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/test-*.mjs
+      - run: dotnet test -c Release -p:ThreeCatTargetFramework=${{ matrix.framework }} -p:ThreeCatJellyfinVersion=${{ matrix.jellyfin }}
+      - name: Package exact target
+        shell: pwsh
+        run: ./package.ps1 -Configuration Release -Version ${{ matrix.version }} -TargetFramework ${{ matrix.framework }} -JellyfinVersion ${{ matrix.jellyfin }}
+      - name: Verify native navigation, favourites and runtime (isolated container)
+        env:
+          JELLYFIN_IMAGE: ${{ matrix.image }}
+          EXPECTED_SERVER_PREFIX: ${{ matrix.prefix }}
+          PLUGIN_VERSION: ${{ matrix.version }}
+        run: bash scripts/smoke-jellyfin-12.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.framework }}
+          path: |
+            dist/threecat_${{ matrix.version }}.zip
+            dist/3cat.png
+          if-no-files-found: error
+  portal-browser:
+    if: github.repository == 'sabatesduran/Jellyfin-3CAT' && github.ref == 'refs/heads/feature/dynamic-catalogue'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/portal-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portal-screenshots
+          path: artifacts/*.png
+          if-no-files-found: warn
+  publish-preview:
+    needs: [verify, portal-browser]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-net9.0
+          path: dist/net9
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-net10.0
+          path: dist/net10
+      - name: Verify packaged files
+        run: |
+          unzip -t dist/net9/threecat_2.0.1.0.zip
+          unzip -t dist/net10/threecat_2.0.1.1.zip
+          cmp dist/net9/3cat.png dist/net10/3cat.png
+      - name: Publish preview
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dynamic-preview-2.0.1
+          target_commitish: ${{ github.sha }}
+          name: 3Cat a la carta 2.0.1 (preview)
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/net9/threecat_2.0.1.0.zip
+            dist/net10/threecat_2.0.1.1.zip
+            dist/net9/3cat.png
+          body: |
+            Same native-first 2.0.1 feature set in two ABI-specific binaries: 2.0.1.0 for Jellyfin 10.11 and 2.0.1.1 for Jellyfin 12.2.
+            Native category folders in My Media, stable programme and movie IDs, recursive favourite refresh, native latest-media discovery and optional secondary web portal.
+            Automated compilation, unit tests, isolated runtime smoke and browser fixture tests are required before publishing. Real media playback, individual native clients and live EPG still require installation-specific validation. Back up the configuration before upgrading.
+      - name: Publish verified manifest and retain rollback entries
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, datetime, pathlib
+          path = pathlib.Path('manifest-preview.json')
+          plugin = json.loads(path.read_text(encoding='utf-8'))[0]
+          base = 'https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0.1/'
+          plugin['imageUrl'] = base + '3cat.png'
+          now = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+          versions = []
+          for folder, version, abi in [('net10', '2.0.1.1', '12.2.0.0'), ('net9', '2.0.1.0', '10.11.6.0')]:
+              name = f'threecat_{version}.zip'
+              package = pathlib.Path('dist') / folder / name
+              versions.append({'version': version, 'changelog': '3Cat 2.0.1: native categories, canonical IDs, native favourites and latest discovery, optional portal.', 'targetAbi': abi, 'sourceUrl': base + name, 'checksum': hashlib.md5(package.read_bytes()).hexdigest().upper(), 'timestamp': now})
+          plugin['versions'] = versions + [v for v in plugin['versions'] if v['version'] not in {'2.0.1.0', '2.0.1.1'}]
+          path.write_text(json.dumps([plugin], ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manifest-preview.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish verified 3Cat 2.0.1 preview packages'
+            git pull --rebase origin feature/dynamic-catalogue
+            git push origin HEAD:feature/dynamic-catalogue
+          fi

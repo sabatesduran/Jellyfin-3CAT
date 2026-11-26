@@ -1,0 +1,53 @@
+[
+  {
+    "guid": "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b",
+    "name": "3Cat",
+    "description": "3Cat a la carta: catàleg virtual automàtic i mode de biblioteca .strm original.",
+    "overview": "Fork del plugin de Lowitle. Navegació sota demanda i actualització del catàleg sense afegir programes manualment.",
+    "owner": "sabatesduran",
+    "category": "General",
+    "versions": [
+      {
+        "version": "2.0.1.1",
+        "changelog": "3Cat 2.0.1: native categories, canonical IDs, native favourites and latest discovery, optional portal.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0.1/threecat_2.0.1.1.zip",
+        "checksum": "1E3D77048672236327FF9BCB54DA705F",
+        "timestamp": "2026-11-26T21:59:54Z"
+      },
+      {
+        "version": "2.0.1.0",
+        "changelog": "3Cat 2.0.1: native categories, canonical IDs, native favourites and latest discovery, optional portal.",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0.1/threecat_2.0.1.0.zip",
+        "checksum": "94569A3713C8390861A2E60539A17514",
+        "timestamp": "2026-11-26T21:59:54Z"
+      },
+      {
+        "version": "2.0.0.1",
+        "changelog": "3Cat 2.0: web portal, incremental catalogue, metadata, films, playback variants and diagnostics.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0/threecat_2.0.0.1.zip",
+        "checksum": "0EF7E9CDCB0CB2E1578FBFDA13A9E52C",
+        "timestamp": "2026-11-26T21:26:14Z"
+      },
+      {
+        "version": "2.0.0.0",
+        "changelog": "3Cat 2.0: web portal, incremental catalogue, metadata, films, playback variants and diagnostics.",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0/threecat_2.0.0.0.zip",
+        "checksum": "288D64E143ED8C86F6A0CF5C15FB3A2D",
+        "timestamp": "2026-11-26T21:26:14Z"
+      },
+      {
+        "version": "1.14.0.1",
+        "changelog": "Dedicated web catalogue and plugin artwork. Runtime validation pending.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.14.0.1/threecat_1.14.0.1.zip",
+        "checksum": "818EECA817A14D3A604F1E9DFDC3EF0E",
+        "timestamp": "2026-11-26T20:43:27Z"
+      }
+    ],
+    "imageUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-2.0.1/3cat.png"
+  }
+]

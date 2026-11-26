@@ -1,0 +1,5 @@
+# Native 3Cat browsing
+
+Open My Media → 3Cat a la carta in Jellyfin. The channel now provides Sèries, Cinema, Documentals, Anime, SX3 and Programes folders. Each title belongs to one canonical category, avoiding aliases and duplicated history. Existing programme/movie IDs and channel name are unchanged. During migration old root entries remain until Jellyfin moves them to their category. Run the native catalogue refresh after upgrading. Back up Jellyfin before upgrading; migration has unit tests and native browsing is covered by the isolated server smoke test.
+
+The native Jellyfin player, account, favourites and viewing data are used. Native latest media is enabled for the main channel; results depend on indexed content and client support. The separate SX3 channel remains optional; the SX3 category inside the main catalogue is not a parental-control boundary. The optional web portal is secondary and may be disabled in the plugin configuration. Exact UI and channel support depend on each Jellyfin client. No web client files are patched.

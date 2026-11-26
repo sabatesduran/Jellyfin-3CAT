@@ -18,7 +18,8 @@ public sealed partial class ThreeCatClient
     public async Task<ThreeCatCatalogPage> GetProgramVideosAsync(
         string programId,
         int maxItems,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireComplete = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(programId);
 
@@ -44,6 +45,11 @@ public sealed partial class ThreeCatClient
 
             if (batch is null || batch.Count == 0)
             {
+                if (requireComplete)
+                {
+                    throw new InvalidOperationException("3Cat: resposta de vídeos incompleta o buida.");
+                }
+
                 if (page == 1)
                 {
                     _logger.LogWarning(
@@ -89,6 +95,11 @@ public sealed partial class ThreeCatClient
                 programId,
                 totalPages,
                 MaxPages);
+        }
+
+        if (requireComplete && !truncated && (totalPages > MaxPages || videos.Count < totalItems))
+        {
+            throw new InvalidOperationException("3Cat: falten vídeos al catàleg del programa.");
         }
 
         return new ThreeCatCatalogPage(videos, totalPages, totalItems, truncated);

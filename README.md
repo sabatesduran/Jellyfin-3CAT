@@ -1,5 +1,7 @@
 # 3Cat para Jellyfin
 
+> **Fork — 3Cat a la carta (experimental):** [nou mode dinàmic, instal·lació i validació](docs/DYNAMIC.md). L’autoria i la llicència originals es mantenen. La versió dinàmica no s'ha de considerar validada fins que passin les proves de compilació i servidor.
+
 Plugin no oficial para **Jellyfin 10.11** que replica el catálogo a la carta de
 [3Cat](https://www.3cat.cat/) (TV3, SX3, 33, Esport3) dentro de una biblioteca de Jellyfin. El plugin
 **no descarga vídeo**: escribe archivos `.strm` que apuntan al MP4 progresivo que publica 3Cat, junto

@@ -1,0 +1,25 @@
+name: 3Cat live source contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop/threecat-2]
+    paths: ['.github/workflows/catalogue-contract.yaml']
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect published 3Cat catalogue structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --max-time 45 -sS 'https://api.3cat.cat/cercador/tot?_format=json&text=&format_contingut=PUFF_FILM&ordre=-data_publicacio&items_pagina=100&pagina=1&sdom=img&version=2.0&https=true&master=no' > films.json
+          jq -e '.resposta.status=="OK" and (.resposta.items.item|type=="array")' films.json
+          jq '{pagination:.resposta.paginacio, records:(.resposta.items.item|length), types:([.resposta.items.item[]|{tipologia,tipus_contingut}]|unique), sample:([.resposta.items.item[]|{id,titol,tipologia,tipus_contingut,durada,codis_etics}]|.[0:12])}' films.json
+          jq '.resposta.items.item[0:4]|map({keys:keys,id,titol,formats,format_contingut,tipus,tipologia,programes_tv,agrupacions})' films.json
+          jq '[.resposta.items.item[]|select((.durada//"")|startswith("00:"))|{id,titol,durada,formats,format_contingut}]' films.json
+          curl --fail-with-body --max-time 45 -sS 'https://api.3cat.cat/cercador/tot?_format=json&text=&tipologia=WCR_PROGRAMA,PTVC_PROGRAMA&data_publicacio=&ordre=-data_publicacio&items_pagina=10&pagina=1&sdom=img&version=2.0&cache=180&https=true&master=no' > programmes.json
+          jq -e '.resposta.status=="OK" and (.resposta.items.item|length>0)' programmes.json
+          jq '{pagination:.resposta.paginacio, sample:([.resposta.items.item[]|{id,titol,tipologia,codis_etics,artwork:[.imatges[]?|{rel_name,mida}]}]|.[0:5])}' programmes.json

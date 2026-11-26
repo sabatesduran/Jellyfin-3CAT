@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ca"><head><meta charset="utf-8"><title>3Cat a la carta</title></head><body>
+<div id="ThreeCatBrowsePage" data-role="page" class="page type-interior pluginConfigurationPage">
+<style>
+#ThreeCatBrowsePage{--tc-red:#df1845}
+#ThreeCatBrowsePage .tc-wrap{max-width:90rem;margin:0 auto;padding:1rem clamp(1rem,4vw,3rem) 3rem}
+#ThreeCatBrowsePage .tc-top{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+#ThreeCatBrowsePage .tc-brand{font-size:2rem;font-weight:750;letter-spacing:-.06em;color:#fff;background:var(--tc-red);padding:.15em .4em;border-radius:.25em}
+#ThreeCatBrowsePage .tc-search{flex:1;min-width:12rem;padding:.85rem;border:1px solid #777;border-radius:.55rem;background:#202126;color:#fff;font:inherit}
+#ThreeCatBrowsePage .tc-tabs{display:flex;gap:.6rem;overflow:auto;padding:.5rem 0 1rem}
+#ThreeCatBrowsePage button,#ThreeCatBrowsePage a.tc-btn{font:inherit;color:inherit;background:#26262c;border:1px solid #555;border-radius:.45rem;padding:.65rem 1rem;cursor:pointer;text-decoration:none;white-space:nowrap}
+#ThreeCatBrowsePage button[aria-pressed=true],#ThreeCatBrowsePage a.tc-primary{background:var(--tc-red);border-color:var(--tc-red);color:white}
+#ThreeCatBrowsePage .tc-hero{position:relative;display:flex;align-items:end;min-height:clamp(16rem,40vw,30rem);overflow:hidden;background:#24242a;border-radius:1rem;margin:0 0 1.8rem;color:white;isolation:isolate}
+#ThreeCatBrowsePage .tc-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+#ThreeCatBrowsePage .tc-hero:before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.94),rgba(0,0,0,.25)),linear-gradient(0deg,rgba(0,0,0,.8),transparent 60%);z-index:-1}
+#ThreeCatBrowsePage .tc-hero-content{padding:clamp(1.2rem,4vw,3rem);max-width:42rem}
+#ThreeCatBrowsePage .tc-hero h1{font-size:clamp(1.75rem,4vw,3.5rem);line-height:1.06;margin:.6rem 0}
+#ThreeCatBrowsePage .tc-description{max-height:7em;overflow:hidden;line-height:1.45;opacity:.92}
+#ThreeCatBrowsePage .tc-actions{display:flex;gap:.65rem;flex-wrap:wrap;margin-top:1rem}
+#ThreeCatBrowsePage .tc-rail{margin:1.6rem 0}
+#ThreeCatBrowsePage .tc-rail h2{margin:0 0 .8rem;font-size:1.35rem}
+#ThreeCatBrowsePage .tc-strip{display:grid;grid-auto-flow:column;grid-auto-columns:clamp(11rem,22vw,19rem);gap:.85rem;overflow-x:auto;padding:0 0 .85rem;scroll-snap-type:x proximity}
+#ThreeCatBrowsePage .tc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,13rem),1fr));gap:1rem}
+#ThreeCatBrowsePage .tc-card{min-width:0;position:relative;scroll-snap-align:start}
+#ThreeCatBrowsePage .tc-card a{color:inherit;text-decoration:none;display:block}
+#ThreeCatBrowsePage .tc-image{aspect-ratio:16/9;background:#29292e;border-radius:.6rem;overflow:hidden;display:grid;place-items:center;position:relative}
+#ThreeCatBrowsePage .tc-image img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#ThreeCatBrowsePage .tc-image span{font-size:1.4rem;font-weight:700;opacity:.5}
+#ThreeCatBrowsePage .tc-name{font-size:1rem;font-weight:600;margin:.6rem 0 .2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ThreeCatBrowsePage .tc-meta{opacity:.7;font-size:.85rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#ThreeCatBrowsePage .tc-card .tc-fav{position:absolute;right:.4rem;top:.4rem;border:0;background:#17171cdd;padding:.35rem .6rem;font-size:1.2rem;color:#fff}
+#ThreeCatBrowsePage .tc-fav[aria-pressed=true]{color:#ff5a7d;background:#17171cdd}
+#ThreeCatBrowsePage .tc-notice{opacity:.8;line-height:1.5}
+#ThreeCatBrowsePage .tc-progress{height:3px;background:#555;margin-top:.3rem}#ThreeCatBrowsePage .tc-progress i{display:block;background:var(--tc-red);height:100%}
+#ThreeCatBrowsePage [hidden]{display:none!important}
+</style>
+<div class="tc-wrap">
+<div class="tc-top"><span class="tc-brand">3Cat</span><input type="search" class="tc-search" id="tcBrowseSearch" placeholder="Cerca programes i pel·lícules" aria-label="Cerca" /><a class="tc-btn" href="#/configurationpage?name=3Cat">Configuració</a></div>
+<nav class="tc-tabs" id="tcBrowseTabs" aria-label="Categories"></nav>
+<p class="tc-notice" id="tcBrowseNotice" role="status" aria-live="polite">Carregant el catàleg…</p>
+<div id="tcBrowseContent"></div>
+<button type="button" id="tcBrowseMore" hidden>Mostra'n més</button>
+</div>
+<script type="text/javascript">
+(function(){
+'use strict';
+var page=document.querySelector('#ThreeCatBrowsePage');
+if(!page || page.dataset.bound) return;
+page.dataset.bound='true';
+var all=[], resume=[], view='home', limit=48, serial=0, channel=null;
+var content=page.querySelector('#tcBrowseContent'), notice=page.querySelector('#tcBrowseNotice'), search=page.querySelector('#tcBrowseSearch'), more=page.querySelector('#tcBrowseMore');
+var tabs=[['home','Inici'],['series','Programes'],['movies','Pel·lícules'],['sx3','SX3'],['anime','Anime'],['documentary','Documentals'],['favorites','Preferits']];
+function node(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function field(o,k){if(!o)return undefined;return o[k]!==undefined?o[k]:o[k.charAt(0).toLowerCase()+k.slice(1)]}
+function id(i){return String(field(i,'Id')||'')}
+function name(i){return String(field(i,'Name')||'Sense títol')}
+function rows(r){return field(r,'Items')||[]}
+function date(i){return Date.parse(field(i,'PremiereDate')||field(i,'DateCreated')||'')||0}
+function genres(i){return field(i,'Genres')||[]}
+function tags(i){return field(i,'Tags')||[]}
+function isMovie(i){return field(i,'Type')==='Movie'}
+function favorite(i){return field(field(i,'UserData'),'IsFavorite')===true}
+function api(path,params){return ApiClient.getJSON(ApiClient.getUrl(path,params||{}))}
+function itemHref(i){var server=typeof ApiClient.serverId==='function'?ApiClient.serverId():field(i,'ServerId');return '#/details?id='+encodeURIComponent(id(i))+(server?'&serverId='+encodeURIComponent(server):'')}
+function image(i,wide){var t=field(i,'ImageTags')||{};var tag=t.Primary||t.primary;var type='Primary';var backdrop=field(i,'BackdropImageTags');if(wide&&Array.isArray(backdrop)&&backdrop.length){tag=backdrop[0];type='Backdrop/0'}if(!tag)return null;return ApiClient.getUrl('Items/'+encodeURIComponent(id(i))+'/Images/'+type,{tag:tag,maxWidth:wide?1200:440,quality:85})}
+function addImage(parent,i,wide){var src=image(i,wide);if(!src)return;var img=node('img');img.alt='';img.loading=wide?'eager':'lazy';img.addEventListener('error',function(){img.remove()});img.src=src;parent.append(img)}
+function fav(i){var b=node('button','tc-fav',favorite(i)?'♥':'♡');b.type='button';b.setAttribute('aria-label','Preferit: '+name(i));b.setAttribute('aria-pressed',String(favorite(i)));b.addEventListener('click',async function(){b.disabled=true;try{var result=await ApiClient.ajax({type:favorite(i)?'DELETE':'POST',url:ApiClient.getUrl('Users/'+encodeURIComponent(ApiClient.getCurrentUserId())+'/FavoriteItems/'+encodeURIComponent(id(i))),dataType:'json'});i.UserData=result;delete i.userData;render()}catch(e){notice.textContent='No s’ha pogut modificar el preferit.'}finally{b.disabled=false}});return b}
+function card(i){var c=node('article','tc-card'),a=node('a');a.href=itemHref(i);var im=node('div','tc-image');im.append(node('span',null,'3Cat'));addImage(im,i,false);a.append(im,node('div','tc-name',name(i)),node('div','tc-meta',[field(i,'SeriesName'),genres(i)[0],field(i,'ProductionYear')].filter(Boolean).join(' · ')));c.append(a,fav(i));var p=Number(field(field(i,'UserData'),'PlayedPercentage'));if(p>0&&p<100){var bar=node('div','tc-progress'),fill=node('i');fill.style.width=Math.max(0,Math.min(100,p))+'%';bar.append(fill);c.append(bar)}return c}
+function rail(title,items,grid){if(!items.length)return;var s=node('section','tc-rail');s.append(node('h2',null,title));var strip=node('div',grid?'tc-grid':'tc-strip');items.forEach(i=>strip.append(card(i)));s.append(strip);content.append(s)}
+function hero(i){if(!i)return;var h=node('section','tc-hero');addImage(h,i,true);var inner=node('div','tc-hero-content');inner.append(node('div','tc-meta','DESCOBREIX 3CAT'),node('h1',null,name(i)));var overview=field(i,'Overview');if(overview)inner.append(node('p','tc-description',overview));var actions=node('div','tc-actions');var a=node('a','tc-btn tc-primary',isMovie(i)?'Veure pel·lícula':'Veure programa');a.href=itemHref(i);actions.append(a);inner.append(actions);h.append(inner);content.append(h)}
+function filtered(){var q=search.value.trim().toLocaleLowerCase('ca');var list=all.filter(i=>{if(view==='movies'&&!isMovie(i))return false;if(view==='series'&&isMovie(i))return false;if(view==='sx3'&&!tags(i).includes('SX3')&&!genres(i).includes('Infantil'))return false;if(view==='anime'&&!genres(i).includes('Anime'))return false;if(view==='documentary'&&!genres(i).includes('Documental'))return false;if(view==='favorites'&&!favorite(i))return false;return !q||[name(i),field(i,'Overview'),...genres(i)].filter(Boolean).join(' ').toLocaleLowerCase('ca').includes(q)});return list}
+function render(){content.replaceChildren();more.hidden=true;var q=search.value.trim(),items=filtered();if(view==='home'&&!q){var newest=all.slice().sort((a,b)=>date(b)-date(a));hero(newest.find(i=>image(i,true))||newest[0]);rail('Continua mirant',resume.slice(0,20));rail('Els teus preferits',all.filter(favorite).slice(0,20));rail('Novetats',newest.slice(0,20));rail('Pel·lícules',newest.filter(isMovie).slice(0,20));rail('Programes',newest.filter(i=>!isMovie(i)).slice(0,20));rail('SX3',newest.filter(i=>tags(i).includes('SX3')||genres(i).includes('Infantil')).slice(0,20));rail('Anime',newest.filter(i=>genres(i).includes('Anime')).slice(0,20));rail('Documentals',newest.filter(i=>genres(i).includes('Documental')).slice(0,20));if(!all.length)content.append(node('p','tc-notice','Encara no hi ha contingut indexat.'));}else{rail(q?'Resultats de cerca':tabs.find(t=>t[0]===view)[1],items.slice(0,limit),true);if(!items.length)content.append(node('p','tc-notice','No hi ha resultats.'));more.hidden=items.length<=limit}page.querySelectorAll('#tcBrowseTabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)))}
+tabs.forEach(t=>{var b=node('button',null,t[1]);b.type='button';b.dataset.view=t[0];b.addEventListener('click',()=>{view=t[0];limit=48;search.value='';render()});page.querySelector('#tcBrowseTabs').append(b)});
+search.addEventListener('input',()=>{limit=48;render()});more.addEventListener('click',()=>{limit+=48;render()});
+async function load(){var generation=++serial;notice.textContent='Carregant el catàleg…';try{var user=ApiClient.getCurrentUserId();var channels=rows(await api('Channels',{userId:user}));var selected=channels.find(i=>name(i)==='3Cat a la carta');if(!selected)throw new Error('Activa 3Cat a la carta a la configuració del complement.');channel=id(selected);var result=await api('Channels/'+encodeURIComponent(channel)+'/Items',{userId:user,fields:'Overview,Genres,Tags,DateCreated',sortBy:'SortName',sortOrder:'Ascending'});if(generation!==serial)return;var root=rows(result);var folders=root.filter(i=>field(i,'Type')==='Folder');var grouped=await Promise.all(folders.map(f=>api('Channels/'+encodeURIComponent(channel)+'/Items',{userId:user,folderId:id(f),fields:'Overview,Genres,Tags,DateCreated'}).then(rows)));if(generation!==serial)return;all=Array.from(new Map(root.filter(i=>field(i,'Type')!=='Folder').concat(grouped.flat()).map(i=>[id(i),i])).values());resume=[];try{var r=await api('Users/'+encodeURIComponent(user)+'/Items/Resume',{parentId:channel,limit:30,fields:'Genres,Overview'});resume=rows(r).filter(i=>String(field(i,'ChannelId')||'')===channel)}catch(e){}if(generation!==serial)return;notice.textContent=all.length+' títols disponibles · Reproducció amb Jellyfin';render()}catch(e){if(generation===serial)notice.textContent=e.message||'No s’ha pogut carregar el catàleg.'}}
+page.addEventListener('pageshow',load);load();
+})();
+</script></div></body></html>

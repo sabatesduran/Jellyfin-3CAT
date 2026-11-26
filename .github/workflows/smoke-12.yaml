@@ -1,0 +1,28 @@
+name: Jellyfin 12.2 runtime smoke
+on:
+  push:
+    branches: [feature/dynamic-catalogue]
+    paths: ['.github/workflows/smoke-12.yaml', 'scripts/smoke-jellyfin-12.sh']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build preview package
+        shell: pwsh
+        run: ./package.ps1 -Configuration Release
+      - name: Test on a disposable Jellyfin 12.2 container
+        run: bash scripts/smoke-jellyfin-12.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jellyfin-smoke-log
+          path: threecat-smoke.log
+          if-no-files-found: ignore

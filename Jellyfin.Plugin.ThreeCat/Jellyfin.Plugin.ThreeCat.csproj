@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>$(ThreeCatTargetFramework)</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.ThreeCat</RootNamespace>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -14,10 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.6">
+    <PackageReference Include="Jellyfin.Controller" Version="$(ThreeCatJellyfinVersion)">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.6">
+    <PackageReference Include="Jellyfin.Model" Version="$(ThreeCatJellyfinVersion)">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
   </ItemGroup>
@@ -30,6 +30,8 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\browsePage.html" />
+    <EmbeddedResource Include="Portal/index.html;Portal/portal.js;Portal/portal.css" />
   </ItemGroup>
 
 </Project>
