@@ -11,15 +11,19 @@ cleanup() {
   sudo rm -rf "$root"
 }
 trap cleanup EXIT
-mkdir -p "$root/config/plugins/3Cat_1.14.0.0" "$root/cache"
-unzip -q dist/threecat_1.14.0.0.zip -d "$root/config/plugins/3Cat_1.14.0.0"
+version="${PLUGIN_VERSION:-$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -1)}"
+image="${JELLYFIN_IMAGE:-jellyfin/jellyfin:12.2.0}"
+expected="${EXPECTED_SERVER_PREFIX:-12.2}"
+mkdir -p "$root/config/plugins/3Cat_$version" "$root/cache"
+unzip -q "dist/threecat_$version.zip" -d "$root/config/plugins/3Cat_$version"
+test -s "$root/config/plugins/3Cat_$version/3cat.png"
 docker run -d --name "$name" --user 0:0 -p 127.0.0.1:18096:8096 \
-  -v "$root/config:/config" -v "$root/cache:/cache" jellyfin/jellyfin:12.2.0 >/dev/null
+  -v "$root/config:/config" -v "$root/cache:/cache"  "$image" >/dev/null
 for i in $(seq 1 90); do
   if curl -fsS "$base/System/Info/Public" > "$root/public.json"; then break; fi
   sleep 2
 done
-jq -e '.Version | startswith("12.2")' "$root/public.json"
+jq -e --arg expected "$expected" '.Version | startswith($expected)' "$root/public.json"
 api() {
   curl --fail-with-body -sS -H "Authorization: $auth" -H 'Content-Type: application/json' "$@"
 }
@@ -31,6 +35,6 @@ token="$(api -X POST "$base/Users/AuthenticateByName" -d "$(jq -nc --arg p "$pas
 authenticated() {
   curl --fail-with-body -sS -H "Authorization: $auth, Token=\"$token\"" -H 'Content-Type: application/json' "$@"
 }
-authenticated "$base/Plugins" | jq -e 'any(.[]; (.Id|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and .Version=="1.14.0.0")'
+authenticated "$base/Plugins" | jq -e --arg version "$version" 'any(.[]; (.Id|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and .Version==$version)'
 authenticated "$base/ThreeCat/Dynamic/Status" | jq -e '.State // .state'
-echo "Plugin loads and administrator status endpoint responds on Jellyfin 12.2."
+echo "Plugin loads and administrator status endpoint responds."
