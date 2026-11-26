@@ -21,7 +21,9 @@ const server=createServer((req,res)=>{
         const folder=u.searchParams.get('folderId');
         if(folder==='series1')return items([{Id:'season1',Name:'Temporada 1',Type:'Season',IsFolder:true}]);
         if(folder==='season1')return items([{Id:'episode1',Name:'Primer episodi',Type:'Episode',ChannelId:'main',IndexNumber:1}]);
-        return items([series,{...movie,UserData:{IsFavorite:favorite}}]);
+        if(folder==='category-series')return items([series]);
+        if(folder==='category-cinema')return items([{...movie,UserData:{IsFavorite:favorite}}]);
+        return items([{Id:'category-series',Name:'Sèries',Type:'Folder',IsFolder:true},{Id:'category-cinema',Name:'Cinema',Type:'Folder',IsFolder:true}]);
     }
     if(u.pathname==='/jf/Channels/child/Items')return items([child]);
     if(u.pathname==='/jf/UserFavoriteItems/movie1'){favorite=req.method==='POST';return json({IsFavorite:favorite})}
