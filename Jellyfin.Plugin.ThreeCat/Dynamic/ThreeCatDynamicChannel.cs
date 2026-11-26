@@ -164,7 +164,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
             {
                 if (DynamicStatus.Current.LastSuccess is null)
                 {
-                    DynamicStatus.Success(current.Items.Count(p => p.Type == ChannelItemType.Folder),
+                    DynamicStatus.Restore(current.Expires - Ttl, current.Items.Count(p => p.Type == ChannelItemType.Folder),
                         current.Items.Count(p => p.ContentType == ChannelMediaContentType.Movie), current.Items.Count(p => p.Tags.Contains("SX3")));
                 }
                 return current.Items;
@@ -184,6 +184,22 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                         _logger.LogWarning(ex, "3Cat: no s'ha pogut carregar la classificació.");
                     }
                 }
+                IReadOnlySet<string>? animeIds = null;
+                if (taxonomy is not null && Plugin.Instance?.Configuration.SeparateAnime == true)
+                {
+                    try
+                    {
+                        var animation = taxonomy.Where(x => ProgramClassifier.IsAnimation(x.Value.Formats, x.Value.Themes))
+                            .Select(x => x.Key);
+                        var details = await _client.GetProgramDetailsAsync(animation, ct).ConfigureAwait(false);
+                        animeIds = details.Where(x => ProgramClassifier.IsAnime(x.Value.Groups, x.Value.Countries))
+                            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "3Cat: no s'ha pogut distingir l'anime.");
+                    }
+                }
                 var fresh = programs.Where(p => p.HasVideo && DynamicIds.Valid(p.Id))
                     .DistinctBy(p => p.Id, StringComparer.Ordinal)
                     .Select(p => new ChannelItemInfo
@@ -194,9 +210,10 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                         ImageUrl = p.ImageUrl!,
                         Overview = PlainText(p.Description)!,
                         Tags = p.Children ? ["SX3"] : [],
-                        Genres = GetProgrammeGenres(p, taxonomy),
+                        Genres = GetProgrammeGenres(p, taxonomy, animeIds),
                         Studios = string.IsNullOrWhiteSpace(p.Channel) ? [] : [p.Channel],
                         PremiereDate = DateTime.TryParseExact(p.Published, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var published) ? published.ToUniversalTime() : null,
+                        DateCreated = DateTime.TryParseExact(p.Published, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var created) ? created.ToUniversalTime() : null,
                         ProviderIds = new Dictionary<string, string> { ["threecat"] = p.Id }
                     }).ToArray();
                 if (fresh.Length == 0) throw new InvalidOperationException("Catàleg de 3Cat buit o no disponible.");
@@ -233,10 +250,11 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                 if (filmError is not null) DynamicStatus.Failure(filmError);
                 return merged;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException && _catalog is not null)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 DynamicStatus.Failure("No s'ha pogut actualitzar el catàleg. Es conserva la còpia anterior.");
                 _logger.LogWarning(ex, "3Cat: es conserva el catàleg anterior.");
+                if (_catalog is null) throw;
                 return _catalog.Items;
             }
         }
@@ -278,13 +296,13 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
 
     private static string? PlainText(string? html) => string.IsNullOrWhiteSpace(html) ? null : WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]+>", string.Empty)).Trim();
 
-    private static List<string> GetProgrammeGenres(ThreeCatCatalogProgram program, IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy)
+    private static List<string> GetProgrammeGenres(ThreeCatCatalogProgram program, IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy, IReadOnlySet<string>? animeIds)
     {
         var genres = new List<string>();
-        if (program.Children) genres.Add("Infantil");
+        if (program.Children && Plugin.Instance?.Configuration.SeparateChildren != false) genres.Add("Infantil");
         if (taxonomy is not null && taxonomy.TryGetValue(program.Id, out var facets))
         {
-            genres.AddRange(ProgramClassifier.Classify(facets.Formats, facets.Themes, null).Genres);
+            genres.AddRange(ProgramClassifier.Classify(facets.Formats, facets.Themes, null, anime: animeIds?.Contains(program.Id) == true).Genres);
         }
         return genres.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
