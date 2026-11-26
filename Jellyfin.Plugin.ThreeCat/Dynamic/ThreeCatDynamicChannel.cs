@@ -160,7 +160,15 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         try
         {
             if (_catalog is null) _catalog = ReadDiskCatalogue();
-            if (_catalog is { } current && current.Fresh) return current.Items;
+            if (_catalog is { } current && current.Fresh)
+            {
+                if (DynamicStatus.Current.LastSuccess is null)
+                {
+                    DynamicStatus.Success(current.Items.Count(p => p.Type == ChannelItemType.Folder),
+                        current.Items.Count(p => p.ContentType == ChannelMediaContentType.Movie), current.Items.Count(p => p.Tags.Contains("SX3")));
+                }
+                return current.Items;
+            }
             try
             {
                 var programs = await _client.ListCompleteProgramsAsync(ct).ConfigureAwait(false);
@@ -212,9 +220,11 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                 {
                     filmError = "No s'ha pogut actualitzar el cinema.";
                     _logger.LogWarning(ex, "3Cat: es conserva el cinema anterior.");
-                    // Do not reconcile a partial root after restart if the film snapshot is missing.
-                    if (_catalog is null) throw;
+                    // An unavailable optional cinema catalogue must not block the programmes.
                 }
+                var previous = _catalog?.Items.Where(p => p.Type == ChannelItemType.Folder).ToArray() ?? [];
+                if (previous.Length > 0 && fresh.Length < previous.Length * .9)
+                    throw new InvalidOperationException("3Cat: reducció sobtada del catàleg; es conserva la còpia anterior.");
                 var merged = fresh.Concat(films).OrderBy(p => p.Name,
                     StringComparer.Create(CultureInfo.GetCultureInfo("ca-ES"), true)).ToArray();
                 _catalog = new Snapshot<ChannelItemInfo>(DateTimeOffset.UtcNow + Ttl, merged);
@@ -330,7 +340,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         }
         if (!DynamicIds.TryVideo(id, out var video) && (ChildrenOnly || !DynamicIds.TryFilm(id, out video))) return [];
         var media = await _client.GetMediaAsync(video, cancellationToken).ConfigureAwait(false);
-        var url = ThreeCatClient.PickFile(media);
+        var url = DynamicPlaybackQuality.Select(media, Plugin.Instance?.Configuration.DynamicQuality);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return [];
         var source = new MediaSourceInfo
         {
