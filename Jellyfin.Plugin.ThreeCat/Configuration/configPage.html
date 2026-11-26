@@ -40,8 +40,8 @@
             }
             #ThreeCatConfigPage .threeCatSettingRow + .threeCatSettingRow { border-top: 1px solid rgba(128,128,128,.22); }
             #ThreeCatConfigPage .threeCatSettingRow strong { display:block; font-weight: 500; }
-            #ThreeCatConfigPage .threeCatSettingRow div > span { display:block; margin-top:.3rem; opacity:.7; font-size:.9em; }
-            #ThreeCatConfigPage .threeCatSettingRow input { flex-shrink:0; }
+            #ThreeCatConfigPage .threeCatSettingRow .threeCatSettingText > span { display:block; margin-top:.3rem; opacity:.7; font-size:.9em; }
+            #ThreeCatConfigPage .threeCatSettingRow input { flex-shrink:0; width:1.25rem; height:1.25rem; accent-color:var(--theme-primary-color, #00a4dc); }
             #ThreeCatConfigPage .threeCatHint { opacity:.75; font-size:.9em; line-height:1.5; padding-top:.85rem; }
             #ThreeCatConfigPage .threeCatMainActions { margin: 1.25rem 0 .25rem; gap:.75rem; }
             #ThreeCatConfigPage .threeCatMainActions button { min-width: 8rem; }
@@ -337,12 +337,12 @@
                 <section class="threeCatPanel" id="ThreeCatCommonSettings" aria-labelledby="ThreeCatPlaybackTitle">
                     <h3 id="ThreeCatPlaybackTitle">Contingut</h3>
                     <label class="threeCatSettingRow">
-                        <div><strong>Subtítols</strong><span>Mostra els subtítols disponibles de 3Cat.</span></div>
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatWriteSubtitles" aria-label="Subtítols" />
+                        <span class="threeCatSettingText"><strong>Subtítols</strong><span>Mostra els subtítols disponibles de 3Cat.</span></span>
+                        <input type="checkbox" id="ThreeCatWriteSubtitles" aria-label="Subtítols" />
                     </label>
                     <label class="threeCatSettingRow">
-                        <div><strong>Categories</strong><span>Classifica el contingut per gènere i tipus.</span></div>
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatClassifyPrograms" aria-label="Categories" />
+                        <span class="threeCatSettingText"><strong>Categories</strong><span>Classifica el contingut per gènere i tipus.</span></span>
+                        <input type="checkbox" id="ThreeCatClassifyPrograms" aria-label="Categories" />
                     </label>
                     <div class="threeCatHint" id="ThreeCatAutomaticHint" hidden>
                         El catàleg s'actualitza automàticament cada hora. Marca els programes com a preferits des de Jellyfin.
@@ -766,6 +766,9 @@
                 </div>
 
                 </details>
+                    <div class="threeCatActions">
+                        <button is="emby-button" type="submit" class="raised button-submit"><span>Desa la configuració manual</span></button>
+                    </div>
                 </details>
 
             </form>
@@ -2522,7 +2525,10 @@
                 document.querySelector('#ThreeCatDisableLegacyMirror').checked = !legacy;
                 var advanced = document.querySelector('#ThreeCatLegacySettings');
                 advanced.hidden = !legacy;
-                if (!legacy) advanced.open = false;
+                if (!legacy) {
+                    advanced.open = false;
+                    document.querySelector('#ThreeCatTechnicalSettings').open = false;
+                }
                 document.querySelector('#ThreeCatCommonSettings').hidden = mode === 'off';
                 document.querySelector('#ThreeCatAutomaticHint').hidden = !dynamic;
                 document.querySelector('#ThreeCatRunNow').disabled = !ThreeCatConfig.loaded || mode === 'off';
@@ -2757,7 +2763,13 @@
                 });
                 document.querySelector('#ThreeCatLegacySettings').addEventListener('toggle', function () {
                     document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', this.open && !this.hidden);
-                    if (this.open && !this.hidden && ThreeCatConfig.loaded) threeCatLoadLegacySettings();
+                    if (this.open && !this.hidden && ThreeCatConfig.loaded) {
+                        threeCatLoadLegacySettings();
+                        if (document.querySelector('#ThreeCatTechnicalSettings').open && !ThreeCatConfig.datasetLoaded) {
+                            ThreeCatConfig.datasetLoaded = true;
+                            threeCatLoadDataset(false);
+                        }
+                    }
                 });
                 document.querySelector('#ThreeCatTechnicalSettings').addEventListener('toggle', function () {
                     if (this.open && !document.querySelector('#ThreeCatLegacySettings').hidden
