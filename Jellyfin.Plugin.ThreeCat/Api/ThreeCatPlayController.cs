@@ -1,5 +1,6 @@
 using System.Globalization;
 using Jellyfin.Plugin.ThreeCat.Configuration;
+using Jellyfin.Plugin.ThreeCat.Dynamic;
 using Jellyfin.Plugin.ThreeCat.Library;
 using Jellyfin.Plugin.ThreeCat.Providers;
 using Jellyfin.Plugin.ThreeCat.Sync;
@@ -459,8 +460,11 @@ public sealed class ThreeCatPlayController : ControllerBase
     [HttpPost("Refresh")]
     public ActionResult RunNow()
     {
+        var dynamicEnabled = Plugin.Instance?.Configuration.DynamicCatalogue == true;
         var worker = _taskManager.ScheduledTasks
-            .FirstOrDefault(task => task.ScheduledTask is ThreeCatRefreshTask);
+            .FirstOrDefault(task => dynamicEnabled
+                ? task.ScheduledTask is ThreeCatDynamicIndexTask
+                : task.ScheduledTask is ThreeCatRefreshTask);
 
         if (worker is null)
         {
