@@ -20,6 +20,18 @@ public sealed class DynamicReconciliationTests
     }
 
     [Fact]
+    public void IncrementalPageNeverRemovesOlderProgrammes()
+    {
+        var result = DynamicReconciliation.Upsert(new[] { "p:a", "p:b" }, new[] { "p:a", "p:c" },
+            new Dictionary<string, int> { ["p:a"] = 1, ["p:b"] = 2, ["m:old"] = 1 }, x => x);
+        Assert.Equal(3, result.Items.Count);
+        Assert.Contains("p:b", result.Items);
+        Assert.Equal(2, result.Missing["p:b"]);
+        Assert.False(result.Missing.ContainsKey("p:a"));
+        Assert.False(result.Missing.ContainsKey("m:old"));
+    }
+
+    [Fact]
     public void ExplicitTargetIsRequiredForSx3Episodes()
     {
         var video = new ThreeCatVideo { Channels = new ThreeCatVideoChannels { Channels = [new ThreeCatLabel { Id = "PUC_S3" }] } };
