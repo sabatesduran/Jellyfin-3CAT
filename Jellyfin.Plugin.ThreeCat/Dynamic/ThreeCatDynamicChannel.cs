@@ -402,25 +402,42 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         else if (!(await GetCatalogueAsync(cancellationToken).ConfigureAwait(false)).Any(p => p.Id == DynamicIds.Film(video))) return [];
         var media = await _client.GetMediaAsync(video, cancellationToken).ConfigureAwait(false);
         if (media?.Info?.Status?.Active == false || media?.Info?.Expires <= DateTimeOffset.UtcNow) return [];
-        var url = DynamicPlaybackQuality.Select(media, Plugin.Instance?.Configuration.DynamicQuality);
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return [];
+        var candidates = DynamicPlaybackQuality.Candidates(media, Plugin.Instance?.Configuration.DynamicQuality);
+        if (candidates.Count == 0) return [];
+
+        var subtitles = await PrepareSubtitlesAsync(video, media, cancellationToken).ConfigureAwait(false);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var sources = await Task.WhenAll(candidates.Select((candidate, index) =>
+            ProbeSourceAsync(originalId, video, candidate, index, media, subtitles, timeout.Token, cancellationToken))).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return sources;
+    }
+
+    private static readonly SemaphoreSlim ProbeGate = new(4, 4);
+
+    private async Task<MediaSourceInfo> ProbeSourceAsync(string originalId, string video,
+        DynamicPlaybackQuality.Candidate candidate, int index, ThreeCatMedia? media,
+        IReadOnlyList<CachedSubtitle> subtitles, CancellationToken probeToken, CancellationToken cancellationToken)
+    {
         var source = new MediaSourceInfo
         {
-            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(originalId)))[..32].ToLowerInvariant(),
-            Path = uri.AbsoluteUri, Name = "3Cat", Protocol = MediaProtocol.Http,
-            Container = "mp4", IsRemote = true, RunTimeTicks = media?.Info?.Duration?.Ticks,
+            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{originalId}|{candidate.Label}|{index}")))[..32].ToLowerInvariant(),
+            Path = candidate.Url, Name = $"3Cat · {candidate.Label}", Protocol = MediaProtocol.Http,
+            Container = string.Equals(media?.Playback?.Format, "MP4", StringComparison.OrdinalIgnoreCase) ? "mp4" : null,
+            IsRemote = true, RunTimeTicks = media?.Info?.Duration?.Ticks,
             SupportsDirectPlay = false, SupportsDirectStream = true, SupportsTranscoding = true, SupportsProbing = true
         };
 
-        // Probe only when requested, rather than inventing codecs or probing the entire catalogue.
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var acquired = false;
         try
         {
+            await ProbeGate.WaitAsync(probeToken).ConfigureAwait(false);
+            acquired = true;
             var info = await _encoder.GetMediaInfo(new MediaInfoRequest
             {
                 MediaSource = source, MediaType = DlnaProfileType.Video, ExtractChapters = false
-            }, timeout.Token).ConfigureAwait(false);
+            }, probeToken).ConfigureAwait(false);
             source.MediaStreams = info.MediaStreams;
             source.SupportsDirectPlay = info.MediaStreams.Any(s => s.Type == MediaStreamType.Video) && !string.IsNullOrWhiteSpace(info.Container);
             source.Container = info.Container ?? source.Container;
@@ -430,56 +447,65 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogWarning(ex, "3Cat: no s'ha pogut analitzar el flux del vídeo {Video}.", video);
+            _logger.LogWarning(ex, "3Cat: no s'ha pogut analitzar una font del vídeo {Video}.", video);
         }
+        finally { if (acquired) ProbeGate.Release(); }
         cancellationToken.ThrowIfCancellationRequested();
-
-        if (Plugin.Instance?.Configuration.WriteSubtitles == true && media?.Subtitles is { Count: > 0 } tracks)
+        var streams = source.MediaStreams.ToList();
+        var nextIndex = streams.Select(s => s.Index).DefaultIfEmpty(-1).Max() + 1;
+        foreach (var track in subtitles)
         {
-            var streams = source.MediaStreams.ToList();
-            var nextIndex = streams.Select(s => s.Index).DefaultIfEmpty(-1).Max() + 1;
-            foreach (var track in ThreeCatSyncService.SelectSubtitleTracks(tracks))
+            streams.Add(new MediaStream
             {
-                // Only use HTTPS sources supplied by 3Cat. Local cache names never contain remote paths.
-                if (!Uri.TryCreate(track.Source, UriKind.Absolute, out var subtitleUri)
-                    || subtitleUri.Scheme != Uri.UriSchemeHttps
-                    || track.Language.Length is < 1 or > 8
-                    || !track.Language.All(char.IsAsciiLetterOrDigit)) continue;
-                try
-                {
-                    var directory = Path.Combine(_paths.CachePath, "3cat-dynamic-subtitles");
-                    Directory.CreateDirectory(directory);
-                    var filename = Path.Combine(directory, $"{video}.{track.Language}.vtt");
-                    if (!File.Exists(filename) || File.GetLastWriteTimeUtc(filename) < DateTime.UtcNow.AddDays(-1))
-                    {
-                        var vtt = await _client.GetStringAsync(subtitleUri.AbsoluteUri, cancellationToken).ConfigureAwait(false);
-                        if (string.IsNullOrWhiteSpace(vtt) || !vtt.TrimStart('\uFEFF', ' ', '\r', '\n').StartsWith("WEBVTT", StringComparison.Ordinal)
-                            || vtt.Length > 4_000_000) continue;
-                        var temp = filename + "." + Guid.NewGuid().ToString("N") + ".tmp";
-                        try
-                        {
-                            await File.WriteAllTextAsync(temp, vtt, cancellationToken).ConfigureAwait(false);
-                            File.Move(temp, filename, overwrite: true);
-                        }
-                        finally { if (File.Exists(temp)) File.Delete(temp); }
-                    }
-                    streams.Add(new MediaStream
-                    {
-                        Type = MediaStreamType.Subtitle, Codec = "webvtt",
-                        Language = track.Language, Index = nextIndex++, Path = filename,
-                        IsExternal = true, IsExternalUrl = false, SupportsExternalStream = true
-                    });
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogWarning(ex, "3Cat: no s'ha pogut preparar un subtítol del vídeo {Video}.", video);
-                }
-            }
-            source.MediaStreams = streams;
+                Type = MediaStreamType.Subtitle, Codec = "webvtt", Title = track.Name,
+                Language = track.Language, Index = nextIndex++, Path = track.Path,
+                IsExternal = true, IsExternalUrl = false, SupportsExternalStream = true
+            });
         }
-
-        return [source];
+        source.MediaStreams = streams;
+        return source;
     }
+
+    private async Task<IReadOnlyList<CachedSubtitle>> PrepareSubtitlesAsync(string video, ThreeCatMedia? media, CancellationToken ct)
+    {
+        var prepared = new List<CachedSubtitle>();
+        if (Plugin.Instance?.Configuration.WriteSubtitles != true || media?.Subtitles is not { Count: > 0 } tracks) return prepared;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var track in tracks.Take(32))
+        {
+            var language = (track.Iso ?? "und").Split('-')[0].Trim().ToLowerInvariant();
+            if (!Uri.TryCreate(track.Url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
+                || language.Length is < 1 or > 8 || !language.All(char.IsAsciiLetterOrDigit) || !seen.Add(uri.AbsoluteUri)) continue;
+            try
+            {
+                var directory = Path.Combine(_paths.CachePath, "3cat-dynamic-subtitles");
+                Directory.CreateDirectory(directory);
+                var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(uri.AbsoluteUri)))[..16].ToLowerInvariant();
+                var filename = Path.Combine(directory, $"{video}.{language}.{key}.vtt");
+                if (!File.Exists(filename) || File.GetLastWriteTimeUtc(filename) < DateTime.UtcNow.AddDays(-1))
+                {
+                    var vtt = await _client.GetStringAsync(uri.AbsoluteUri, ct).ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(vtt) || !vtt.TrimStart('\uFEFF', ' ', '\r', '\n').StartsWith("WEBVTT", StringComparison.Ordinal)
+                        || vtt.Length > 4_000_000) continue;
+                    var temp = filename + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                    try
+                    {
+                        await File.WriteAllTextAsync(temp, vtt, ct).ConfigureAwait(false);
+                        File.Move(temp, filename, overwrite: true);
+                    }
+                    finally { if (File.Exists(temp)) File.Delete(temp); }
+                }
+                prepared.Add(new CachedSubtitle(language, string.IsNullOrWhiteSpace(track.Name) ? language : track.Name.Trim(), filename));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "3Cat: no s'ha pogut preparar un subtítol del vídeo {Video}.", video);
+            }
+        }
+        return prepared;
+    }
+
+    private sealed record CachedSubtitle(string Language, string Name, string Path);
 
     private sealed record Snapshot<T>(DateTimeOffset Expires, IReadOnlyList<T> Items,
         Dictionary<string, int>? Missing = null, string? Signature = null, DateTimeOffset RetryAfter = default)
