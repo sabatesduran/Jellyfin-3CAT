@@ -197,9 +197,10 @@ public sealed partial class ThreeCatClient
             Children: ProgramClassifier.IsChildren(
                 null,
                 program.Channels?.Select(channel => channel.Id)),
-            ImageUrl: program.Images?.Select(image => image.Url)
-                .FirstOrDefault(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps),
-            Description: program.Description);
+            ImageUrl: DynamicArtwork.Select(program.Images, "IMG_POSTER", "IMATGE_169", "IMAGE"),
+            Description: program.Description,
+            BackdropUrl: DynamicArtwork.SelectRole(program.Images, "IMATGE_169", "IMAGE"),
+            LogoUrl: DynamicArtwork.SelectRole(program.Images, "IMG_LOGO"));
     }
 
     /// <summary>
