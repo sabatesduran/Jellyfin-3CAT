@@ -8,6 +8,12 @@ internal static class DynamicIds
     internal static string Program(string id) => $"p:{id}";
     internal static string Season(string id, int season) => $"s:{id}:{season.ToString(CultureInfo.InvariantCulture)}";
     internal static string Video(string program, string id) => $"v:{program}:{id}";
+    internal static string Film(string id) => $"m:{id}";
+    internal static bool TryFilm(string? value, out string id)
+    {
+        id = value?.StartsWith("m:", StringComparison.Ordinal) == true ? value[2..] : string.Empty;
+        return Valid(id);
+    }
     internal static bool TryProgram(string? value, out string id)
     {
         id = value?.StartsWith("p:", StringComparison.Ordinal) == true ? value[2..] : string.Empty;
