@@ -42,7 +42,7 @@ jobs:
       - name: Package exact target
         shell: pwsh
         run: ./package.ps1 -Configuration Release -Version ${{ matrix.version }} -TargetFramework ${{ matrix.framework }} -JellyfinVersion ${{ matrix.jellyfin }}
-      - name: Runtime smoke (isolated container)
+      - name: Native channel hierarchy and runtime smoke (isolated container)
         env:
           JELLYFIN_IMAGE: ${{ matrix.image }}
           EXPECTED_SERVER_PREFIX: ${{ matrix.prefix }}
