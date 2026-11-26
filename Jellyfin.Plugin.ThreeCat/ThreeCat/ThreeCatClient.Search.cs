@@ -236,6 +236,17 @@ public sealed partial class ThreeCatClient
     public Task<IReadOnlyList<ThreeCatCatalogProgram>> ListCompleteProgramsAsync(CancellationToken cancellationToken)
         => ReadAllProgramsAsync(cancellationToken, requireComplete: true);
 
+    /// <summary>Reads the newest page only; absence from this page never implies removal.</summary>
+    internal async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListRecentProgramsAsync(CancellationToken ct)
+    {
+        var response = (await GetJsonAsync<ThreeCatSearchEnvelope>(ProgramPageUrl(1), ct).ConfigureAwait(false))?.Response;
+        if (response?.Items?.Items is not { Count: > 0 } items
+            || !string.Equals(response.Status, "OK", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("3Cat: pàgina recent no disponible.");
+        return items.Where(p => !string.IsNullOrWhiteSpace(p.Id))
+            .DistinctBy(p => p.Id, StringComparer.Ordinal).Select(ToCatalogProgram).ToArray();
+    }
+
     private async Task<IReadOnlyList<ThreeCatCatalogProgram>> ReadAllProgramsAsync(CancellationToken cancellationToken, bool requireComplete = false)
     {
         var first = await GetJsonAsync<ThreeCatSearchEnvelope>(
