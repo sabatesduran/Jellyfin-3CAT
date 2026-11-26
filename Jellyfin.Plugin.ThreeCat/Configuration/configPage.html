@@ -317,7 +317,8 @@
                     <div>
                         <h2 class="sectionTitle">3Cat</h2>
                         <p>Tot el catàleg de 3Cat, a Jellyfin.</p>
-                        <a class="raised emby-button" href="#/configurationpage?name=3CatBrowse" style="display:inline-block;margin-top:.85rem;text-decoration:none">Explora 3Cat</a>
+                        <button type="button" is="emby-button" class="raised emby-button" style="display:inline-block;margin-top:.85rem" id="ThreeCatPortalOpen">Obre el portal 3Cat</button>
+                        <a class="raised emby-button" href="#/configurationpage?name=3CatBrowse">Vista prèvia administrativa</a>
                     </div>
                     <span class="threeCatVersion" id="ThreeCatVersion"></span>
                 </header>
@@ -867,6 +868,8 @@
             // The build the server is running. A page cached by the browser keeps showing the old layout
             // after a plugin update, and the version is what tells the two apart.
             function threeCatLoadVersion() {
+                var portal = document.getElementById("ThreeCatPortalOpen");
+                if (portal) portal.onclick = function () { window.open(ApiClient.getUrl("ThreeCat/Explore/"), "_blank", "noopener,noreferrer"); };
                 var label = document.querySelector('#ThreeCatVersion');
 
                 if (!label) {
