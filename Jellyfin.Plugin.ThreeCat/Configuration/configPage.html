@@ -355,9 +355,94 @@
                 </div>
                 <div class="fieldDescription threeCatStatus" id="ThreeCatStatus" role="status" aria-live="polite"></div>
 
-                <details id="ThreeCatLegacySettings" class="threeCatAdvanced" hidden>
-                    <summary>Configuració de la biblioteca manual</summary>
-                    <p class="threeCatMuted">Només per al mode de biblioteca manual. Els programes i les rutes existents es conserven en canviar de mode.</p>
+                <details id="ThreeCatLegacySettings" class="threeCatAdvanced">
+                    <summary>Configuració avançada</summary>
+                    <p class="threeCatMuted">Pots consultar i desar les opcions originals sense canviar el mode de funcionament. Les opcions de fitxers, carpetes i proveïdors externs només s’apliquen quan la biblioteca manual està activa.</p>
+                    <div class="threeCatHint" id="ThreeCatManualModeHint" hidden>La biblioteca manual està desactivada. Els seus ajustos es conservaran per si la vols activar més endavant.</div>
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Opcions de la biblioteca manual</h2>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
+                        <input is="emby-input" type="number" min="1" max="720" id="ThreeCatRefreshInterval" />
+                        <div class="fieldDescription">
+                            Cada cuántas horas se ejecuta «Actualizar 3Cat». La tarea también se lanza al arrancar
+                            el servidor. Los valores menores que 1 vuelven a las 12 horas.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatMaxItems">Máximo de episodios por programa</label>
+                        <input is="emby-input" type="number" min="0" id="ThreeCatMaxItems" />
+                        <div class="fieldDescription">
+                            <code>0</code> escribe todos los vídeos del catálogo. Con un valor positivo se queda
+                            con los episodios más recientes.
+                        </div>
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatWriteNfo" />
+                        <span>Escribir archivos .nfo</span>
+                    </label>
+                    <div class="fieldDescription">
+                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: sin una fuente de
+                        proveedor el episodio se numera con la temporada y el capítulo que 3Cat escribe en el
+                        título, que no son los de TVDB ni los de TMDB, así que conviene desactivar los metadatos
+                        en línea en la biblioteca.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateAnime" />
+                        <span>Separar el anime de la animación</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat archiva el anime como animación y no publica ninguna etiqueta propia: «Bola de
+                        Drac» y «Doraemon» comparten formato con «Mironins» o «Louie». El plugin lo distingue
+                        por lo que sí publica 3Cat —el país de origen del programa («Japó») y las colecciones
+                        internas con las que monta sus franjas de anime—, sin bases de datos externas ni clave
+                        de TVDB, y escribe «Anime» como primer género y «Animació» como segundo, de modo que la
+                        biblioteca se sigue filtrando por animación. De la misma ficha se escribe el título
+                        original («Dragon Ball»), que no tiene por qué coincidir con el catalán. Cuesta una
+                        petición por programa de animación —las 175 del catálogo se leen en unos dos segundos,
+                        seis a la vez, y quedan en caché seis horas—. Requiere la clasificación por formato.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateChildren" />
+                        <span>Marcar los programas infantiles como «Infantil»</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat clasifica cada vídeo por público («Infantil», «Juvenil», «Tots els Públics») y con
+                        esa marca monta las franjas del SX3. El plugin la lee del catálogo que ya descarga
+                        —sin peticiones extra— y escribe «Infantil» como género justo después del tipo, de modo
+                        que «Anime» y «Animació» siguen funcionando y la biblioteca se puede filtrar por
+                        «Infantil». Si un vídeo no publica público, manda el canal de la familia SX3
+                        (<code>PUC_S3</code>, <code>PUC_S3_S3</code>, <code>PUC_S3_X3</code>). Requiere la
+                        clasificación por formato.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatPruneExpired" />
+                        <span>Omitir los vídeos caducados y borrar sus archivos</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat publica una fecha de caducidad (<code>data_caducitat</code>) por vídeo. Pasada esa
+                        fecha el MP4 responde 404, así que deja de escribirse el episodio y se limpian los
+                        archivos anteriores.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDeleteObsolete" />
+                        <span>Borrar los archivos que ya no están en el catálogo</span>
+                    </label>
+                    <div class="fieldDescription threeCatWarning">
+                        Elimina cualquier <code>.strm</code>, <code>.nfo</code> o <code>.srt</code> de la carpeta
+                        de la serie que la ejecución no haya escrito. Si el catálogo responde vacío o a medias, la
+                        carpeta se queda vacía. Déjalo desactivado salvo que quieras limpiar a mano.
+                    </div>
+                </div>
+
+                <details id="ThreeCatManualLibrarySettings" class="threeCatAdvanced">
+                    <summary>Programes i biblioteques manuals</summary>
                 <div class="verticalSection">
                     <h2 class="sectionTitle">Programas</h2>
 
@@ -507,8 +592,9 @@
                     <div class="fieldDescription" id="ThreeCatKindsStatus"></div>
                 </div>
 
+                </details>
                 <details id="ThreeCatTechnicalSettings" class="threeCatAdvanced">
-                    <summary>Opcions avançades de la biblioteca manual</summary>
+                    <summary>Metadades i numeració (biblioteca manual)</summary>
                 <div class="verticalSection">
                     <h2 class="sectionTitle">Fuente de metadatos</h2>
 
@@ -683,91 +769,10 @@
                     </div>
                 </div>
 
-                <div class="verticalSection">
-                    <h2 class="sectionTitle">Opciones</h2>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
-                        <input is="emby-input" type="number" min="1" max="720" id="ThreeCatRefreshInterval" />
-                        <div class="fieldDescription">
-                            Cada cuántas horas se ejecuta «Actualizar 3Cat». La tarea también se lanza al arrancar
-                            el servidor. Los valores menores que 1 vuelven a las 12 horas.
-                        </div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatMaxItems">Máximo de episodios por programa</label>
-                        <input is="emby-input" type="number" min="0" id="ThreeCatMaxItems" />
-                        <div class="fieldDescription">
-                            <code>0</code> escribe todos los vídeos del catálogo. Con un valor positivo se queda
-                            con los episodios más recientes.
-                        </div>
-                    </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatWriteNfo" />
-                        <span>Escribir archivos .nfo</span>
-                    </label>
-                    <div class="fieldDescription">
-                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: sin una fuente de
-                        proveedor el episodio se numera con la temporada y el capítulo que 3Cat escribe en el
-                        título, que no son los de TVDB ni los de TMDB, así que conviene desactivar los metadatos
-                        en línea en la biblioteca.
-                    </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateAnime" />
-                        <span>Separar el anime de la animación</span>
-                    </label>
-                    <div class="fieldDescription">
-                        3Cat archiva el anime como animación y no publica ninguna etiqueta propia: «Bola de
-                        Drac» y «Doraemon» comparten formato con «Mironins» o «Louie». El plugin lo distingue
-                        por lo que sí publica 3Cat —el país de origen del programa («Japó») y las colecciones
-                        internas con las que monta sus franjas de anime—, sin bases de datos externas ni clave
-                        de TVDB, y escribe «Anime» como primer género y «Animació» como segundo, de modo que la
-                        biblioteca se sigue filtrando por animación. De la misma ficha se escribe el título
-                        original («Dragon Ball»), que no tiene por qué coincidir con el catalán. Cuesta una
-                        petición por programa de animación —las 175 del catálogo se leen en unos dos segundos,
-                        seis a la vez, y quedan en caché seis horas—. Requiere la clasificación por formato.
-                    </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSeparateChildren" />
-                        <span>Marcar los programas infantiles como «Infantil»</span>
-                    </label>
-                    <div class="fieldDescription">
-                        3Cat clasifica cada vídeo por público («Infantil», «Juvenil», «Tots els Públics») y con
-                        esa marca monta las franjas del SX3. El plugin la lee del catálogo que ya descarga
-                        —sin peticiones extra— y escribe «Infantil» como género justo después del tipo, de modo
-                        que «Anime» y «Animació» siguen funcionando y la biblioteca se puede filtrar por
-                        «Infantil». Si un vídeo no publica público, manda el canal de la familia SX3
-                        (<code>PUC_S3</code>, <code>PUC_S3_S3</code>, <code>PUC_S3_X3</code>). Requiere la
-                        clasificación por formato.
-                    </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatPruneExpired" />
-                        <span>Omitir los vídeos caducados y borrar sus archivos</span>
-                    </label>
-                    <div class="fieldDescription">
-                        3Cat publica una fecha de caducidad (<code>data_caducitat</code>) por vídeo. Pasada esa
-                        fecha el MP4 responde 404, así que deja de escribirse el episodio y se limpian los
-                        archivos anteriores.
-                    </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDeleteObsolete" />
-                        <span>Borrar los archivos que ya no están en el catálogo</span>
-                    </label>
-                    <div class="fieldDescription threeCatWarning">
-                        Elimina cualquier <code>.strm</code>, <code>.nfo</code> o <code>.srt</code> de la carpeta
-                        de la serie que la ejecución no haya escrito. Si el catálogo responde vacío o a medias, la
-                        carpeta se queda vacía. Déjalo desactivado salvo que quieras limpiar a mano.
-                    </div>
-                </div>
 
                 </details>
                     <div class="threeCatActions">
-                        <button is="emby-button" type="submit" class="raised button-submit"><span>Desa la configuració manual</span></button>
+                        <button is="emby-button" type="submit" class="raised button-submit"><span>Desa la configuració avançada</span></button>
                     </div>
                 </details>
 
@@ -2524,11 +2529,11 @@
                 document.querySelector('#ThreeCatDynamicCatalogue').checked = dynamic;
                 document.querySelector('#ThreeCatDisableLegacyMirror').checked = !legacy;
                 var advanced = document.querySelector('#ThreeCatLegacySettings');
-                advanced.hidden = !legacy;
-                if (!legacy) {
-                    advanced.open = false;
-                    document.querySelector('#ThreeCatTechnicalSettings').open = false;
-                }
+                advanced.hidden = false;
+                document.querySelector('#ThreeCatManualModeHint').hidden = legacy;
+                ['ThreeCatCreateLibrary', 'ThreeCatApplyKinds'].forEach(function (id) {
+                    document.querySelector('#' + id).disabled = !legacy || !ThreeCatConfig.loaded;
+                });
                 document.querySelector('#ThreeCatCommonSettings').hidden = mode === 'off';
                 document.querySelector('#ThreeCatAutomaticHint').hidden = !dynamic;
                 document.querySelector('#ThreeCatRunNow').disabled = !ThreeCatConfig.loaded || mode === 'off';
@@ -2539,8 +2544,9 @@
                     both: 'Utilitza el catàleg virtual i conserva la sincronització de la biblioteca manual.',
                     off: 'Atura les actualitzacions del plugin sense eliminar contingut existent.'
                 }[mode];
-                document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', legacy && advanced.open);
-                if (legacy && advanced.open) threeCatLoadLegacySettings();
+                document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', advanced.open && document.querySelector('#ThreeCatManualLibrarySettings').open);
+                if (advanced.open) ThreeCatConfig.advancedOpened = true;
+                if (advanced.open && document.querySelector('#ThreeCatManualLibrarySettings').open) threeCatLoadLegacySettings();
             }
 
             function threeCatLoadLegacySettings() {
@@ -2559,6 +2565,7 @@
                 ThreeCatConfig.loaded = false;
                 ThreeCatConfig.legacyLoaded = false;
                 ThreeCatConfig.datasetLoaded = false;
+                ThreeCatConfig.advancedOpened = false;
                 document.querySelector('#ThreeCatMode').disabled = true;
                 document.querySelector('#ThreeCatSaveButton').disabled = true;
                 document.querySelector('#ThreeCatRunNow').disabled = true;
@@ -2664,7 +2671,7 @@
             function threeCatSave() {
                 if (!ThreeCatConfig.loaded) return Promise.reject(new Error('Configuració encara no carregada.'));
                 return ApiClient.getPluginConfiguration(ThreeCatConfig.pluginId).then(function (config) {
-                    if (!document.querySelector('#ThreeCatDisableLegacyMirror').checked) {
+                    if (!document.querySelector('#ThreeCatDisableLegacyMirror').checked || ThreeCatConfig.advancedOpened) {
                     config.Programs = ThreeCatConfig.programs.map(function (program) {
                         return {
                             Id: program.Id,
@@ -2762,17 +2769,24 @@
                     threeCatStatus('Canvis pendents de desar.');
                 });
                 document.querySelector('#ThreeCatLegacySettings').addEventListener('toggle', function () {
-                    document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', this.open && !this.hidden);
-                    if (this.open && !this.hidden && ThreeCatConfig.loaded) {
-                        threeCatLoadLegacySettings();
+                    var manual = document.querySelector('#ThreeCatManualLibrarySettings');
+                    document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', this.open && manual.open);
+                    if (this.open && ThreeCatConfig.loaded) {
+                        ThreeCatConfig.advancedOpened = true;
+                        if (manual.open) threeCatLoadLegacySettings();
                         if (document.querySelector('#ThreeCatTechnicalSettings').open && !ThreeCatConfig.datasetLoaded) {
                             ThreeCatConfig.datasetLoaded = true;
                             threeCatLoadDataset(false);
                         }
                     }
                 });
+                document.querySelector('#ThreeCatManualLibrarySettings').addEventListener('toggle', function () {
+                    var advanced = document.querySelector('#ThreeCatLegacySettings');
+                    document.querySelector('#ThreeCatConfigForm').classList.toggle('threeCatWide', advanced.open && this.open);
+                    if (advanced.open && this.open && ThreeCatConfig.loaded) threeCatLoadLegacySettings();
+                });
                 document.querySelector('#ThreeCatTechnicalSettings').addEventListener('toggle', function () {
-                    if (this.open && !document.querySelector('#ThreeCatLegacySettings').hidden
+                    if (this.open && document.querySelector('#ThreeCatLegacySettings').open
                         && ThreeCatConfig.loaded && !ThreeCatConfig.datasetLoaded) {
                         ThreeCatConfig.datasetLoaded = true;
                         threeCatLoadDataset(false);
