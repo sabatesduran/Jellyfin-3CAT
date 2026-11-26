@@ -191,7 +191,12 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
             }
             try
             {
-                var programs = await _client.ListCompleteProgramsAsync(ct).ConfigureAwait(false);
+                var now = DateTimeOffset.UtcNow;
+                var full = _catalog is null || _catalog.Signature != signature
+                    || _catalog.LastFull <= now.AddHours(-24);
+                var programs = full
+                    ? await _client.ListCompleteProgramsAsync(ct).ConfigureAwait(false)
+                    : await _client.ListRecentProgramsAsync(ct).ConfigureAwait(false);
                 IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy = null;
                 if (Plugin.Instance?.Configuration.ClassifyPrograms == true)
                 {
@@ -260,8 +265,11 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                     // An unavailable optional cinema catalogue must not block the programmes.
                 }
                 var previous = _catalog?.Items ?? [];
-                var programmes = DynamicReconciliation.Merge(previous.Where(p => p.Type == ChannelItemType.Folder),
-                    fresh, _catalog?.Missing, p => p.Id);
+                var programmes = full
+                    ? DynamicReconciliation.Merge(previous.Where(p => p.Type == ChannelItemType.Folder),
+                        fresh, _catalog?.Missing, p => p.Id)
+                    : DynamicReconciliation.Upsert(previous.Where(p => p.Type == ChannelItemType.Folder),
+                        fresh, _catalog?.Missing, p => p.Id);
                 var movies = filmError is null
                     ? DynamicReconciliation.Merge(previous.Where(p => p.ContentType == ChannelMediaContentType.Movie),
                         films, _catalog?.Missing, p => p.Id)
@@ -270,11 +278,11 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                 var missing = programmes.Missing.Concat(movies.Missing).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
                 var merged = programmes.Items.Concat(movies.Items).OrderBy(p => p.Name,
                     StringComparer.Create(CultureInfo.GetCultureInfo("ca-ES"), true)).ToArray();
-                _catalog = new Snapshot<ChannelItemInfo>(DateTimeOffset.UtcNow + Ttl, merged, missing, signature);
+                _catalog = new Snapshot<ChannelItemInfo>(DateTimeOffset.UtcNow + Ttl, merged, missing, signature, LastFull: full ? now : _catalog!.LastFull);
                 _catalogSignature = signature;
                 _catalogRetryAfter = default;
                 WriteDiskCatalogue(_catalog);
-                DynamicStatus.Success(fresh.Length, films.Length, fresh.Count(p => p.Tags.Contains("SX3")));
+                DynamicStatus.Success(programmes.Items.Count, movies.Items.Count, programmes.Items.Count(p => p.Tags.Contains("SX3")));
                 if (filmError is not null) DynamicStatus.Failure(filmError);
                 return AvailableCatalogue(merged);
             }
@@ -508,7 +516,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
     private sealed record CachedSubtitle(string Language, string Name, string Path);
 
     private sealed record Snapshot<T>(DateTimeOffset Expires, IReadOnlyList<T> Items,
-        Dictionary<string, int>? Missing = null, string? Signature = null, DateTimeOffset RetryAfter = default)
+        Dictionary<string, int>? Missing = null, string? Signature = null, DateTimeOffset RetryAfter = default, DateTimeOffset LastFull = default)
     {
         public bool Fresh => DateTimeOffset.UtcNow < Expires;
     }
