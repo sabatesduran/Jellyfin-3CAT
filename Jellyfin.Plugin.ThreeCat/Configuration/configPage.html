@@ -284,6 +284,23 @@
                 </div>
 
                 <div class="verticalSection">
+                    <h2 class="sectionTitle">3Cat a la carta</h2>
+                    <p class="fieldDescription">Catàleg automàtic sense haver d'afegir programes, crear carpetes ni generar fitxers .strm. Marca els programes que vulguis com a preferits des de Jellyfin.</p>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDynamicCatalogue" />
+                        <span>3Cat a la carta: catàleg virtual automàtic</span>
+                    </label>
+                    <div class="fieldDescription">Mostra els programes sense importar-los. Reinicia Jellyfin després de desar.</div>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDisableLegacyMirror" />
+                        <span>Desactiva la sincronització de fitxers .strm</span>
+                    </label>
+                    <div class="fieldDescription">No elimina fitxers existents ni modifica altres biblioteques.</div>
+
+                    <div class="fieldDescription">El mode original continua disponible a sota. Els preferits i l'historial antics no es traslladen automàticament al canal nou.</div>
+                </div>
+
+                <div class="verticalSection">
                     <h2 class="sectionTitle">Programas</h2>
 
                     <div class="threeCatRow">
@@ -625,17 +642,6 @@
 
                 <div class="verticalSection">
                     <h2 class="sectionTitle">Opciones</h2>
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDynamicCatalogue" />
-                        <span>3Cat a la carta: catàleg virtual automàtic</span>
-                    </label>
-                    <div class="fieldDescription">Mostra els programes sense importar-los. Reinicia Jellyfin després de desar.</div>
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDisableLegacyMirror" />
-                        <span>Desactiva la sincronització de fitxers .strm</span>
-                    </label>
-                    <div class="fieldDescription">No elimina fitxers existents ni modifica altres biblioteques.</div>
-
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
                         <input is="emby-input" type="number" min="1" max="720" id="ThreeCatRefreshInterval" />
@@ -2671,6 +2677,13 @@
 
                 ThreeCatConfig.bound = true;
 
+                document.querySelector('#ThreeCatDynamicCatalogue').addEventListener('change', function () {
+                    if (this.checked) {
+                        document.querySelector('#ThreeCatDisableLegacyMirror').checked = true;
+                        threeCatStatus('Mode a la carta seleccionat. Desa la configuració i reinicia Jellyfin.');
+                    }
+                });
+
                 document.querySelector('#ThreeCatAddProgram').addEventListener('click', function () {
                     threeCatResolve(document.querySelector('#ThreeCatProgramInput').value);
                 });
@@ -2718,8 +2731,9 @@
 
                     threeCatSave().then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
-                        threeCatStatus('Configuración guardada. '
-                            + ThreeCatConfig.programs.length + ' programa(s) en la lista.');
+                        threeCatStatus(document.querySelector('#ThreeCatDynamicCatalogue').checked
+                            ? 'Configuració desada. Reinicia Jellyfin i obre 3Cat a la carta.'
+                            : 'Configuración guardada. ' + ThreeCatConfig.programs.length + ' programa(s) en la lista.');
                     }, function () {
                         Dashboard.hideLoadingMsg();
                         threeCatStatus('No se pudo guardar la configuración.');
