@@ -73,10 +73,16 @@ pluginId="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
 authenticated "$base/Plugins/$pluginId/Configuration" | jq 'del(.DynamicCatalogue,.DisableLegacyMirror,.ClassifyPrograms,.SeparateAnime,.SeparateChildren,.DynamicSx3) | .dynamicCatalogue=true | .disableLegacyMirror=true | .classifyPrograms=false | .separateAnime=false | .separateChildren=false | .dynamicSx3=false' > "$root/plugin-config.json"
 authenticated -X POST "$base/Plugins/$pluginId/Configuration" --data-binary "@$root/plugin-config.json"
 viewerId="$(jq -er '.Id // .id' "$root/viewer.json")"
+# A newly created user may default to restricted channels. Explicitly grant channel access.
+authenticated "$base/Users/$viewerId" | jq '(.Policy // .policy) | del(.EnableAllChannels,.EnabledChannels,.BlockedChannels,.MaxParentalRating,.BlockUnratedItems) | .enableAllChannels=true | .enabledChannels=[] | .blockedChannels=[] | .maxParentalRating=null | .blockUnratedItems=[]' > "$root/viewer-policy.json"
+authenticated -X POST "$base/Users/$viewerId/Policy" --data-binary "@$root/viewer-policy.json"
+authenticated "$base/Plugins/$pluginId/Configuration" | jq -e '(.DynamicCatalogue // .dynamicCatalogue)==true'
+echo "Native test: dynamic catalogue enabled and viewer policy granted."
 viewer() {
   curl --fail-with-body -sS -H "Authorization: $auth, Token=\"$viewerToken\"" -H 'Content-Type: application/json' "$@"
 }
 viewer "$base/Channels?userId=$viewerId" > "$root/channels.json"
+jq '(.Items // .items)|map({name:(.Name // .name),id:(.Id // .id)})' "$root/channels.json"
 channelId="$(jq -er '(.Items // .items)[]|select((.Name // .name)=="3Cat a la carta")|(.Id // .id)' "$root/channels.json")"
 viewer "$base/Channels/$channelId/Items?userId=$viewerId" > "$root/native-root.json"
 jq -e '(.Items // .items)|length==6' "$root/native-root.json"
