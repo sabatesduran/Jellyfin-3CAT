@@ -29,6 +29,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHttpClient<TmdbClient>(client => ConfigureClient(client, TmdbClient.BaseAddress));
         serviceCollection.AddHttpClient<TvdbClient>(client => ConfigureClient(client, TvdbClient.BaseAddress));
 
+        serviceCollection.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, Portal.ThreeCatWebMenu>();
         serviceCollection.AddSingleton<ThreeCatSyncService>();
         serviceCollection.AddSingleton<IScheduledTask, ThreeCatRefreshTask>();
         serviceCollection.AddSingleton<IScheduledTask, Dynamic.ThreeCatDynamicIndexTask>();
