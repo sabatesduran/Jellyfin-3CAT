@@ -317,8 +317,8 @@
                     <div>
                         <h2 class="sectionTitle">3Cat</h2>
                         <p>Tot el catàleg de 3Cat, a Jellyfin.</p>
-                        <button type="button" is="emby-button" class="raised emby-button" style="display:inline-block;margin-top:.85rem" id="ThreeCatPortalOpen">Obre el portal 3Cat</button>
-                        <a class="raised emby-button" href="#/configurationpage?name=3CatBrowse">Vista prèvia administrativa</a>
+                        <button type="button" is="emby-button" class="raised emby-button" style="display:inline-block;margin-top:.85rem" id="ThreeCatPortalOpen">Portal web opcional</button>
+                        <p class="threeCatMuted">Obre 3Cat a <strong>My Media</strong> des de qualsevol client Jellyfin. El portal web és opcional.</p>
                     </div>
                     <span class="threeCatVersion" id="ThreeCatVersion"></span>
                 </header>
@@ -367,7 +367,7 @@
                         <input type="checkbox" id="ThreeCatDynamicSx3" aria-label="Canal SX3 independent" />
                     </label>
                     <label class="threeCatSettingRow">
-                        <span class="threeCatSettingText"><strong>Enllaç 3Cat al menú web</strong><span>Opcional: afegeix el portal a la navegació de Jellyfin Web sense modificar els fitxers del servidor. Recarrega la pàgina després de desar.</span></span>
+                        <span class="threeCatSettingText"><strong>Enllaç 3Cat al menú web</strong><span>Opcional: obre el portal en una pestanya separada. No cal activar-ho per utilitzar 3Cat a la televisió, el mòbil o l’ordinador.</span></span>
                         <input type="checkbox" id="ThreeCatWebPortalMenu" aria-label="Enllaç al menú web" />
                     </label>
                     <div id="ThreeCatQualityRow" hidden>
@@ -381,7 +381,7 @@
                         <p class="threeCatMuted">Si no hi ha la qualitat seleccionada, s'utilitza una de disponible.</p>
                     </div>
                     <div class="threeCatHint" id="ThreeCatAutomaticHint" hidden>
-                        El catàleg s'actualitza automàticament cada hora. Marca els programes com a preferits des de Jellyfin.
+                        El catàleg natiu s’organitza en categories i s’actualitza automàticament cada hora. Marca els programes com a preferits des de Jellyfin.
                     </div>
                 </section>
 
