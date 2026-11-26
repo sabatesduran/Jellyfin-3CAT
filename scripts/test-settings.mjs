@@ -48,7 +48,9 @@ test('four legacy flag combinations round-trip through the mode selector', () =>
         context.threeCatApplyMode();
         assert.equal(el('#ThreeCatDynamicCatalogue').checked, dynamic);
         assert.equal(el('#ThreeCatDisableLegacyMirror').checked, disableMirror);
-        assert.equal(el('#ThreeCatLegacySettings').hidden, disableMirror);
+        assert.equal(el('#ThreeCatLegacySettings').hidden, false);
+        assert.equal(el('#ThreeCatManualModeHint').hidden, !disableMirror);
+        assert.equal(el('#ThreeCatCreateLibrary').disabled, disableMirror);
         assert.equal(el('#ThreeCatRunNow').disabled, mode === 'off');
     }
 });
@@ -68,4 +70,22 @@ test('dynamic save preserves existing manual settings and avoids duplicate JSON 
     assert.equal(result.WriteSubtitles,true);
     assert.equal(result.ClassifyPrograms,false);
     assert.equal('dynamicCatalogue' in result,false);
+});
+
+
+test('advanced settings remain accessible and can be saved in dynamic mode', async () => {
+    const {el, context, saved} = harness({dynamicCatalogue:true,disableLegacyMirror:true});
+    el('#ThreeCatMode').value = 'dynamic';
+    el('#ThreeCatLegacySettings').open = true;
+    context.threeCatApplyMode();
+    el('#ThreeCatDestinationPath').value = '/config/3cat';
+    el('#ThreeCatSeparateAnime').checked = true;
+    el('#ThreeCatSeparateChildren').checked = true;
+    await context.threeCatSave();
+    const result = saved();
+    assert.equal(result.DynamicCatalogue,true);
+    assert.equal(result.DisableLegacyMirror,true);
+    assert.equal(result.DestinationPath,'/config/3cat');
+    assert.equal(result.SeparateAnime,true);
+    assert.equal(result.SeparateChildren,true);
 });
