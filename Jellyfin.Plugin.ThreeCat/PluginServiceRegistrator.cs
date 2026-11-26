@@ -3,6 +3,7 @@ using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.Tasks;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ThreeCatSyncService>();
         serviceCollection.AddSingleton<IScheduledTask, ThreeCatRefreshTask>();
         serviceCollection.AddSingleton<IScheduledTask, Dynamic.ThreeCatDynamicIndexTask>();
+        serviceCollection.AddSingleton<IChannel, Dynamic.ThreeCatDynamicChannel>();
     }
 
     private static void ConfigureClient(HttpClient client, string baseAddress)
