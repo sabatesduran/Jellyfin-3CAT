@@ -70,13 +70,13 @@ items = [
 json.dump({"Expires":(now+datetime.timedelta(hours=2)).isoformat(),"Items":items,"Signature":"False:False:False","LastFull":now.isoformat()},open(sys.argv[1],"w"))
 PY
 pluginId="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-authenticated "$base/Plugins/$pluginId/Configuration" | jq 'del(.DynamicCatalogue,.DisableLegacyMirror,.ClassifyPrograms,.SeparateAnime,.SeparateChildren,.DynamicSx3) | .dynamicCatalogue=true | .disableLegacyMirror=true | .classifyPrograms=false | .separateAnime=false | .separateChildren=false | .dynamicSx3=false' > "$root/plugin-config.json"
+authenticated "$base/Plugins/$pluginId/Configuration" | jq 'del(.dynamicCatalogue,.disableLegacyMirror,.classifyPrograms,.separateAnime,.separateChildren,.dynamicSx3) | .DynamicCatalogue=true | .DisableLegacyMirror=true | .ClassifyPrograms=false | .SeparateAnime=false | .SeparateChildren=false | .DynamicSx3=false' > "$root/plugin-config.json"
 authenticated -X POST "$base/Plugins/$pluginId/Configuration" --data-binary "@$root/plugin-config.json"
 viewerId="$(jq -er '.Id // .id' "$root/viewer.json")"
 # A newly created user may default to restricted channels. Explicitly grant channel access.
 authenticated "$base/Users/$viewerId" | jq '(.Policy // .policy) | del(.EnableAllChannels,.EnabledChannels,.BlockedChannels,.MaxParentalRating,.BlockUnratedItems) | .enableAllChannels=true | .enabledChannels=[] | .blockedChannels=[] | .maxParentalRating=null | .blockUnratedItems=[]' > "$root/viewer-policy.json"
 authenticated -X POST "$base/Users/$viewerId/Policy" --data-binary "@$root/viewer-policy.json"
-authenticated "$base/Plugins/$pluginId/Configuration" | jq -e '(.DynamicCatalogue // .dynamicCatalogue)==true'
+authenticated "$base/Plugins/$pluginId/Configuration" | jq -e '{dynamic:(.DynamicCatalogue // .dynamicCatalogue),mirror:(.DisableLegacyMirror // .disableLegacyMirror)} | if .dynamic==true and .mirror==true then . else error("Native mode not persisted: "+tostring) end'
 echo "Native test: dynamic catalogue enabled and viewer policy granted."
 viewer() {
   curl --fail-with-body -sS -H "Authorization: $auth, Token=\"$viewerToken\"" -H 'Content-Type: application/json' "$@"
