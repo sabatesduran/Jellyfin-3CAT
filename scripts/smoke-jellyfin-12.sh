@@ -7,16 +7,19 @@ auth='MediaBrowser Client="3Cat smoke", Device="CI", DeviceId="threecat-ci", Ver
 cleanup() {
   docker logs "$name" > "$root/server.log" 2>&1 || true
   cp "$root/server.log" ./threecat-smoke.log
+  if [[ "${1:-0}" != 0 ]]; then tail -100 "$root/server.log" >&2; fi
   docker rm -f "$name" >/dev/null 2>&1 || true
   sudo rm -rf "$root"
 }
-trap cleanup EXIT
+trap 'cleanup "$?"' EXIT
 version="${PLUGIN_VERSION:-$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -1)}"
 image="${JELLYFIN_IMAGE:-ghcr.io/jellyfin/jellyfin:12.2.20261005-225228}"
 expected="${EXPECTED_SERVER_PREFIX:-12.2}"
 mkdir -p "$root/config/plugins/3Cat_$version" "$root/cache"
 unzip -q "dist/threecat_$version.zip" -d "$root/config/plugins/3Cat_$version"
 test -s "$root/config/plugins/3Cat_$version/3cat.png"
+# Match the manifest normally produced by Jellyfin when installing from a repository.
+jq -nc --arg v "$version" --arg abi "$expected.0.0" '{guid:"d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b",name:"3Cat",version:$v,targetAbi:$abi,status:"Active",autoUpdate:false,category:"General",imagePath:"3cat.png",assemblies:["Jellyfin.Plugin.ThreeCat.dll"]}' > "$root/config/plugins/3Cat_$version/meta.json"
 docker run -d --name "$name" --user 0:0 -p 127.0.0.1:18096:8096 \
   -v "$root/config:/config" -v "$root/cache:/cache"  "$image" >/dev/null
 for i in $(seq 1 90); do
@@ -36,7 +39,9 @@ token="$(api -X POST "$base/Users/AuthenticateByName" -d "$(jq -nc --arg p "$pas
 authenticated() {
   curl --fail-with-body -sS -H "Authorization: $auth, Token=\"$token\"" -H 'Content-Type: application/json' "$@"
 }
-authenticated "$base/Plugins" | jq -e --arg version "$version" 'any(.[]; ((.Id // .id // "")|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and (.Version // .version)==$version)'
+authenticated "$base/Plugins" > "$root/plugins.json"
+jq 'map({id:(.Id // .id),name:(.Name // .name),version:(.Version // .version),status:(.Status // .status)})' "$root/plugins.json"
+jq -e --arg version "$version" 'any(.[]; ((.Id // .id // "")|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and (.Version // .version)==$version)' "$root/plugins.json"
 authenticated "$base/ThreeCat/Dynamic/Status" | jq -e '.State // .state'
 curl -fsS "$base/ThreeCat/Explore/" | grep -q "loginForm"
 curl -fsS "$base/ThreeCat/Explore/portal.js" > "$root/portal.js"
