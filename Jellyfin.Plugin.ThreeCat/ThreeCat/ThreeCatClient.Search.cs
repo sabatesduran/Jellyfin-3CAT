@@ -229,7 +229,11 @@ public sealed partial class ThreeCatClient
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The programs of the catalog, without duplicates.</returns>
-    private async Task<IReadOnlyList<ThreeCatCatalogProgram>> ReadAllProgramsAsync(CancellationToken cancellationToken)
+    /// <summary>Returns a complete catalogue or fails, for consumers that reconcile item deletions.</summary>
+    public Task<IReadOnlyList<ThreeCatCatalogProgram>> ListCompleteProgramsAsync(CancellationToken cancellationToken)
+        => ReadAllProgramsAsync(cancellationToken, requireComplete: true);
+
+    private async Task<IReadOnlyList<ThreeCatCatalogProgram>> ReadAllProgramsAsync(CancellationToken cancellationToken, bool requireComplete = false)
     {
         var first = await GetJsonAsync<ThreeCatSearchEnvelope>(
             ProgramPageUrl(1),
@@ -246,7 +250,12 @@ public sealed partial class ThreeCatClient
         }
 
         var programs = new List<ThreeCatSearchProgram>(items);
-        var totalPages = Math.Clamp(firstPage.Pagination?.TotalPages ?? 1, 1, MaxProgramPages);
+        var reportedPages = firstPage.Pagination?.TotalPages ?? 1;
+        if (requireComplete && reportedPages > MaxProgramPages)
+        {
+            throw new InvalidOperationException("3Cat: catàleg supera el límit de pàgines.");
+        }
+        var totalPages = Math.Clamp(reportedPages, 1, MaxProgramPages);
 
         if (totalPages > 1)
         {
@@ -271,6 +280,10 @@ public sealed partial class ThreeCatClient
             });
 
             await Task.WhenAll(requests).ConfigureAwait(false);
+            if (requireComplete && remaining.Any(batch => batch is null || batch.Count == 0))
+            {
+                throw new InvalidOperationException("3Cat: catàleg incomplet.");
+            }
 
             // The order of the answer is the order of 3Cat, page by page: a program that appears in two
             // pages (the catalog moves while it is read) is listed once.
@@ -281,6 +294,12 @@ public sealed partial class ThreeCatClient
                     programs.AddRange(page);
                 }
             }
+        }
+
+        if (requireComplete && firstPage.Pagination?.TotalItems is { } expected
+            && expected > programs.Where(p => !string.IsNullOrWhiteSpace(p.Id)).DistinctBy(p => p.Id).LongCount())
+        {
+            throw new InvalidOperationException("3Cat: falten programes al catàleg.");
         }
 
         return programs
