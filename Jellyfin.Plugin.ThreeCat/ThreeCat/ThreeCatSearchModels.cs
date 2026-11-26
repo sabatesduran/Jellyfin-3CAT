@@ -161,4 +161,6 @@ public sealed record ThreeCatCatalogProgram(
     string? Category = null,
     bool Children = false,
     string? ImageUrl = null,
-    string? Description = null);
+    string? Description = null,
+    string? BackdropUrl = null,
+    string? LogoUrl = null);

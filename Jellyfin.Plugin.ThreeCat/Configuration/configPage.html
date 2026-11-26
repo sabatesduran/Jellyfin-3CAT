@@ -317,7 +317,8 @@
                     <div>
                         <h2 class="sectionTitle">3Cat</h2>
                         <p>Tot el catàleg de 3Cat, a Jellyfin.</p>
-                        <a class="raised emby-button" href="#/configurationpage?name=3CatBrowse" style="display:inline-block;margin-top:.85rem;text-decoration:none">Explora 3Cat</a>
+                        <button type="button" is="emby-button" class="raised emby-button" style="display:inline-block;margin-top:.85rem" id="ThreeCatPortalOpen">Obre el portal 3Cat</button>
+                        <a class="raised emby-button" href="#/configurationpage?name=3CatBrowse">Vista prèvia administrativa</a>
                     </div>
                     <span class="threeCatVersion" id="ThreeCatVersion"></span>
                 </header>
@@ -348,6 +349,7 @@
                     </div>
                     <p class="threeCatMuted" id="ThreeCatLastSuccess"></p>
                     <p class="threeCatMuted" id="ThreeCatHealthError"></p>
+                    <button type="button" id="ThreeCatExportDiagnostics" class="raised emby-button">Exporta diagnòstic (sense secrets)</button>
                     <button is="emby-button" type="button" id="ThreeCatRefreshStatus" class="raised"><span>Comprova l'estat</span></button>
                 </section>
                 <section class="threeCatPanel" id="ThreeCatCommonSettings" aria-labelledby="ThreeCatPlaybackTitle">
@@ -363,6 +365,10 @@
                     <label class="threeCatSettingRow" id="ThreeCatSx3Row" hidden>
                         <span class="threeCatSettingText"><strong>Canal SX3 independent</strong><span>Mostra programes etiquetats com a SX3. Configura els permisos dels usuaris a Jellyfin.</span></span>
                         <input type="checkbox" id="ThreeCatDynamicSx3" aria-label="Canal SX3 independent" />
+                    </label>
+                    <label class="threeCatSettingRow">
+                        <span class="threeCatSettingText"><strong>Enllaç 3Cat al menú web</strong><span>Opcional: afegeix el portal a la navegació de Jellyfin Web sense modificar els fitxers del servidor. Recarrega la pàgina després de desar.</span></span>
+                        <input type="checkbox" id="ThreeCatWebPortalMenu" aria-label="Enllaç al menú web" />
                     </label>
                     <div id="ThreeCatQualityRow" hidden>
                         <label class="threeCatSettingLabel" for="ThreeCatDynamicQuality">Qualitat preferida</label>
@@ -393,6 +399,8 @@
                     <label class="threeCatSettingLabel" for="ThreeCatLiveGuide">Guia XMLTV (TDTChannels)</label>
                     <input id="ThreeCatLiveGuide" readonly value="https://www.tdtchannels.com/epg/TV.xml.gz" style="width:100%;box-sizing:border-box" />
                     <p class="threeCatMuted">Comprova la correspondència dels canals amb la guia al tauler de Jellyfin.</p>
+                    <div class="threeCatActions"><button type="button" class="raised emby-button" id="ThreeCatInstallLive">Afegeix el sintonitzador M3U</button><button type="button" class="raised emby-button" id="ThreeCatInstallGuide">Afegeix la guia XMLTV</button></div>
+                    <p id="ThreeCatLiveStatus" role="status" class="threeCatMuted"></p>
                 </details>
                 <details id="ThreeCatLegacySettings" class="threeCatAdvanced">
                     <summary>Configuració avançada</summary>
@@ -867,6 +875,25 @@
             // The build the server is running. A page cached by the browser keeps showing the old layout
             // after a plugin update, and the version is what tells the two apart.
             function threeCatLoadVersion() {
+                var portal = document.getElementById("ThreeCatPortalOpen");
+                if (portal) portal.onclick = function () { window.open(ApiClient.getUrl("ThreeCat/Explore/"), "_blank", "noopener,noreferrer"); };
+                var diagnostics = document.querySelector('#ThreeCatExportDiagnostics');
+                if (diagnostics) diagnostics.onclick = async function () {
+                    try {
+                        var result = await ApiClient.getJSON(threeCatUrl('Dynamic/Diagnostics'));
+                        var blob = new Blob([JSON.stringify(result, null, 2)], {type:'application/json'});
+                        var url = URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = '3cat-diagnostics.json';
+                        a.click();
+                        setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+                    } catch (e) { threeCatStatus('No s’ha pogut exportar el diagnòstic.'); }
+                };
+                var live = document.querySelector('#ThreeCatInstallLive');
+                var guide = document.querySelector('#ThreeCatInstallGuide');
+                if (live) live.onclick = function () { threeCatInstallLive(false); };
+                if (guide) guide.onclick = function () { threeCatInstallLive(true); };
                 var label = document.querySelector('#ThreeCatVersion');
 
                 if (!label) {
@@ -885,6 +912,30 @@
                 }, function () {
                     label.textContent = '';
                 });
+            }
+
+            // Use Jellyfin's native admin API. Never replace or remove other tuners or guide providers.
+            async function threeCatInstallLive(isGuide) {
+                var state = document.querySelector('#ThreeCatLiveStatus');
+                var button = document.querySelector(isGuide ? '#ThreeCatInstallGuide' : '#ThreeCatInstallLive');
+                var url = document.querySelector(isGuide ? '#ThreeCatLiveGuide' : '#ThreeCatLivePlaylist').value;
+                if (!window.confirm(isGuide ? 'Afegir la guia externa de TDTChannels al servidor?' : 'Afegir el sintonitzador 3Cat al servidor?')) return;
+                button.disabled = true;
+                state.textContent = 'Comprovant la configuració de Live TV…';
+                try {
+                    var cfg = await ApiClient.getJSON(ApiClient.getUrl('System/Configuration/livetv'));
+                    var rows = threeCatField(cfg, isGuide ? 'listingProviders' : 'tunerHosts');
+                    if (!Array.isArray(rows)) throw new Error('No es pot verificar la configuració existent.');
+                    if (rows.some(function (x) { return threeCatField(x, isGuide ? 'path' : 'url') === url; })) {
+                        state.textContent = 'Ja està configurat. No s’ha creat cap duplicat.';
+                        return;
+                    }
+                    var model = isGuide ? { Type: 'xmltv', Path: url, EnableAllTuners: true, PreferredLanguage: 'ca' } : { Type: 'm3u', Url: url, FriendlyName: '3Cat', TunerCount: 1 };
+                    await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(isGuide ? 'LiveTv/ListingProviders' : 'LiveTv/TunerHosts'), data: JSON.stringify(model), contentType: 'application/json' });
+                    state.textContent = 'Afegit. Revisa els canals i la correspondència de la guia al tauler de Live TV.';
+                } catch (e) {
+                    state.textContent = 'No s’ha pogut afegir automàticament. Utilitza les URL de dalt al tauler de Live TV.';
+                } finally { button.disabled = false; }
             }
 
             function threeCatStatus(message) {
@@ -2684,6 +2735,7 @@
                         threeCatField(config, 'tvdbPin') || '';
                     document.querySelector('#ThreeCatDynamicCatalogue').checked = threeCatField(config, 'dynamicCatalogue') === true;
                     document.querySelector('#ThreeCatDynamicSx3').checked = threeCatField(config, 'dynamicSx3') === true;
+                    document.querySelector('#ThreeCatWebPortalMenu').checked = threeCatField(config, 'webPortalMenu') === true;
                     document.querySelector('#ThreeCatDynamicQuality').value = threeCatField(config, 'dynamicQuality') || 'auto';
                     document.querySelector('#ThreeCatDisableLegacyMirror').checked = threeCatField(config, 'disableLegacyMirror') === true;
                     document.querySelector('#ThreeCatRefreshInterval').value =
@@ -2779,6 +2831,7 @@
                     }
                     config.DynamicCatalogue = document.querySelector('#ThreeCatDynamicCatalogue').checked;
                     config.DynamicSx3 = document.querySelector('#ThreeCatDynamicSx3').checked;
+                    config.WebPortalMenu = document.querySelector('#ThreeCatWebPortalMenu').checked;
                     config.DynamicQuality = document.querySelector('#ThreeCatDynamicQuality').value || 'auto';
                     config.DisableLegacyMirror = document.querySelector('#ThreeCatDisableLegacyMirror').checked;
                     config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;

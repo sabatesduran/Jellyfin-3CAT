@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Creates dist/threecat_<Version>.zip with the compiled assembly. The configuration page travels
-    embedded in the .dll (it is an EmbeddedResource of the project), so the zip is a single file.
+    embedded in the .dll (it is an EmbeddedResource of the project), and the ZIP also includes the plugin artwork.
 .EXAMPLE
     pwsh ./package.ps1
     powershell -ExecutionPolicy Bypass -File .\package.ps1 -Version 1.0.0.0
@@ -14,7 +14,9 @@
 param(
     [string]$Configuration = 'Release',
     # Empty = the Version of Directory.Build.props.
-    [string]$Version
+    [string]$Version,
+    [string]$TargetFramework = 'net9.0',
+    [string]$JellyfinVersion = '10.11.6'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,12 +31,12 @@ if (-not $Version) {
 }
 
 Write-Host "Compilando $project ($Configuration)..." -ForegroundColor Cyan
-dotnet build $project -c $Configuration --nologo -v minimal
+dotnet build $project -c $Configuration --nologo -v minimal "-p:ThreeCatTargetFramework=$TargetFramework" "-p:ThreeCatJellyfinVersion=$JellyfinVersion"
 if ($LASTEXITCODE -ne 0) {
     throw "La compilacion ha fallado (codigo $LASTEXITCODE)."
 }
 
-$bin = Join-Path (Join-Path (Join-Path $projectDir 'bin') $Configuration) 'net9.0'
+$bin = Join-Path (Join-Path (Join-Path $projectDir 'bin') $Configuration) $TargetFramework
 $dll = Join-Path $bin 'Jellyfin.Plugin.ThreeCat.dll'
 if (-not (Test-Path $dll)) {
     throw "No se ha encontrado el ensamblado compilado en $bin."

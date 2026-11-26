@@ -1,0 +1,69 @@
+name: 3Cat 2.0 development
+on:
+  push:
+    branches: [develop/threecat-2]
+  pull_request:
+    branches: [feature/dynamic-catalogue]
+permissions:
+  contents: read
+concurrency:
+  group: development-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - framework: net9.0
+            sdk: 9.0.x
+            jellyfin: 10.11.6
+            prefix: '10.11'
+            image: jellyfin/jellyfin:10.11.6
+          - framework: net10.0
+            sdk: 10.0.x
+            jellyfin: 12.2.0
+            prefix: '12.2'
+            image: ghcr.io/jellyfin/jellyfin:12.2.20261005-225228
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/test-*.mjs
+      - run: dotnet test -c Release -p:ThreeCatTargetFramework=${{ matrix.framework }} -p:ThreeCatJellyfinVersion=${{ matrix.jellyfin }}
+      - shell: pwsh
+        run: ./package.ps1 -TargetFramework ${{ matrix.framework }} -JellyfinVersion ${{ matrix.jellyfin }}
+      - name: Runtime smoke (isolated container)
+        env:
+          JELLYFIN_IMAGE: ${{ matrix.image }}
+          EXPECTED_SERVER_PREFIX: ${{ matrix.prefix }}
+        run: bash scripts/smoke-jellyfin-12.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: development-${{ matrix.framework }}
+          path: |
+            dist/*.zip
+            threecat-smoke.log
+          if-no-files-found: warn
+  portal-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/portal-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portal-screenshots
+          path: artifacts/*.png
+          if-no-files-found: warn

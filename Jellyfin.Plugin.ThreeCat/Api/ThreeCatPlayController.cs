@@ -19,7 +19,7 @@ namespace Jellyfin.Plugin.ThreeCat.Api;
 /// Endpoints used by the configuration page.
 /// </summary>
 [ApiController]
-[Authorize]
+[Authorize(Policy = "RequiresElevation")]
 [Route("ThreeCat")]
 public sealed class ThreeCatPlayController : ControllerBase
 {
@@ -80,6 +80,37 @@ public sealed class ThreeCatPlayController : ControllerBase
     {
         var status = DynamicStatus.Current;
         return Ok(new { status.LastSuccess, status.Programmes, status.Films, status.Sx3, status.State, status.Error });
+    }
+
+    /// <summary>Shareable diagnostics. Deliberately excludes paths, URLs, tokens, user data and raw exception messages.</summary>
+    [HttpGet("Dynamic/Diagnostics")]
+    [Authorize(Policy = "RequiresElevation")]
+    public IActionResult DynamicDiagnostics()
+    {
+        var status = DynamicStatus.Current;
+        var configuration = Plugin.Instance?.Configuration;
+        return Ok(new
+        {
+            schema = 1,
+            pluginVersion = typeof(Plugin).Assembly.GetName().Version?.ToString(),
+            runtime = Environment.Version.ToString(),
+            status.State,
+            status.LastSuccess,
+            status.Programmes,
+            status.Films,
+            status.Sx3,
+            configuration = new
+            {
+                configuration?.DynamicCatalogue,
+                configuration?.DynamicSx3,
+                configuration?.DisableLegacyMirror,
+                configuration?.WebPortalMenu,
+                configuration?.WriteSubtitles,
+                configuration?.ClassifyPrograms,
+                configuration?.SeparateAnime,
+                configuration?.SeparateChildren
+            }
+        });
     }
 
     [HttpGet("Programs/Resolve")]

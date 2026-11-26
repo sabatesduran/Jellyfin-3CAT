@@ -197,9 +197,10 @@ public sealed partial class ThreeCatClient
             Children: ProgramClassifier.IsChildren(
                 null,
                 program.Channels?.Select(channel => channel.Id)),
-            ImageUrl: program.Images?.Select(image => image.Url)
-                .FirstOrDefault(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps),
-            Description: program.Description);
+            ImageUrl: DynamicArtwork.Select(program.Images, "IMG_POSTER", "IMATGE_169", "IMAGE"),
+            Description: program.Description,
+            BackdropUrl: DynamicArtwork.SelectRole(program.Images, "IMATGE_169", "IMAGE"),
+            LogoUrl: DynamicArtwork.SelectRole(program.Images, "IMG_LOGO"));
     }
 
     /// <summary>
@@ -235,6 +236,17 @@ public sealed partial class ThreeCatClient
     /// <summary>Returns a complete catalogue or fails, for consumers that reconcile item deletions.</summary>
     public Task<IReadOnlyList<ThreeCatCatalogProgram>> ListCompleteProgramsAsync(CancellationToken cancellationToken)
         => ReadAllProgramsAsync(cancellationToken, requireComplete: true);
+
+    /// <summary>Reads the newest page only; absence from this page never implies removal.</summary>
+    internal async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListRecentProgramsAsync(CancellationToken ct)
+    {
+        var response = (await GetJsonAsync<ThreeCatSearchEnvelope>(ProgramPageUrl(1), ct).ConfigureAwait(false))?.Response;
+        if (response?.Items?.Items is not { Count: > 0 } items
+            || !string.Equals(response.Status, "OK", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("3Cat: pàgina recent no disponible.");
+        return items.Where(p => !string.IsNullOrWhiteSpace(p.Id))
+            .DistinctBy(p => p.Id, StringComparer.Ordinal).Select(ToCatalogProgram).ToArray();
+    }
 
     private async Task<IReadOnlyList<ThreeCatCatalogProgram>> ReadAllProgramsAsync(CancellationToken cancellationToken, bool requireComplete = false)
     {
