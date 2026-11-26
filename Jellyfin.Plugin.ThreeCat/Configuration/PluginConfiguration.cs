@@ -253,6 +253,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Show a separate, optional SX3 browsing channel.</summary>
     public bool DynamicSx3 { get; set; }
 
+    /// <summary>Opt in to the custom link in Jellyfin Web's navigation; never modifies installed files.</summary>
+    public bool WebPortalMenu { get; set; }
+
     /// <summary>Preferred playback height, or auto.</summary>
     public string DynamicQuality { get; set; } = "auto";
 
