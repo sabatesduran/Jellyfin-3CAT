@@ -51,6 +51,22 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
             ChannelIds = [channel.Id],
             EnableTotalRecordCount = false
         }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+        if (Plugin.Instance?.Configuration.DynamicSx3 == true)
+        {
+            var sx3 = channels.Items.FirstOrDefault(c => c.Name == "SX3 a la carta");
+            if (sx3 is not null)
+            {
+                try
+                {
+                    await _manager.GetChannelItemsInternal(new InternalItemsQuery { ChannelIds = [sx3.Id], EnableTotalRecordCount = false }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+                    await RefreshFavouritesAsync(sx3, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "3Cat: no s'ha pogut actualitzar SX3.");
+                }
+            }
+        }
         progress.Report(30);
 
         try
