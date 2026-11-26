@@ -41,8 +41,17 @@ authenticated() {
 }
 authenticated "$base/Plugins" > "$root/plugins.json"
 jq 'map({id:(.Id // .id),name:(.Name // .name),version:(.Version // .version),status:(.Status // .status)})' "$root/plugins.json"
-jq -e --arg version "$version" 'any(.[]; ((.Id // .id // "")|ascii_downcase)=="d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b" and (.Version // .version)==$version)' "$root/plugins.json"
+jq -e --arg version "$version" 'any(.[]; ((.Id // .id // "")|ascii_downcase|gsub("-";""))=="d8b0f3a26c4e4f0a9e1b2c3d4e5f6a7b" and (.Version // .version)==$version)' "$root/plugins.json"
 authenticated "$base/ThreeCat/Dynamic/Status" | jq -e '.State // .state'
+authenticated "$base/ThreeCat/Dynamic/Diagnostics" | jq -e '(.schema // .Schema)==1'
+# Check ordinary users cannot access configuration or diagnostics.
+viewerPassword="$(openssl rand -hex 24)"
+authenticated -X POST "$base/Users/New" -d "$(jq -nc --arg p "$viewerPassword" '{Name:"threecat-viewer",Password:$p}')" > "$root/viewer.json"
+viewerToken="$(api -X POST "$base/Users/AuthenticateByName" -d "$(jq -nc --arg p "$viewerPassword" '{Username:"threecat-viewer",Pw:$p}')" | jq -er '.AccessToken // .accessToken')"
+for endpoint in ThreeCat/Dynamic/Diagnostics ThreeCat/Programs/All ThreeCat/Libraries; do
+  status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: $auth, Token=\"$viewerToken\"" "$base/$endpoint")"
+  [[ "$status" == 403 || "$status" == 401 ]]
+done
 curl -fsS "$base/ThreeCat/Explore/" | grep -q "loginForm"
 curl -fsS "$base/ThreeCat/Explore/portal.js" > "$root/portal.js"
 grep -q "Users/AuthenticateByName" "$root/portal.js"
