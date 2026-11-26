@@ -12,6 +12,8 @@ using Jellyfin.Plugin.ThreeCat.ThreeCat;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Dto;
@@ -23,12 +25,14 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.ThreeCat.Dynamic;
 
 /// <summary>Native, on-demand 3Cat channel. No STRM files are needed.</summary>
-public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback
+public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback, ISupportsLatestMedia
 {
     private readonly ThreeCatClient _client;
     private readonly IMediaEncoder _encoder;
     private readonly IApplicationPaths _paths;
     private readonly ILogger<ThreeCatDynamicChannel> _logger;
+    private readonly ILibraryManager _library;
+    private readonly IUserManager _users;
     private static readonly SemaphoreSlim CatalogGate = new(1, 1);
     private static readonly SemaphoreSlim EpisodeGate = new(3, 3);
     private static readonly SemaphoreSlim[] EpisodeLocks = Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
@@ -39,18 +43,20 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
     private static Snapshot<ChannelItemInfo>? _catalog;
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
 
-    public ThreeCatDynamicChannel(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths, ILogger<ThreeCatDynamicChannel> logger)
+    public ThreeCatDynamicChannel(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths, ILogger<ThreeCatDynamicChannel> logger, ILibraryManager library, IUserManager users)
     {
         _client = client;
         _encoder = encoder;
         _paths = paths;
         _logger = logger;
+        _library = library;
+        _users = users;
     }
 
     protected virtual bool ChildrenOnly => false;
     public virtual string Name => "3Cat a la carta";
     public virtual string Description => "Catàleg de 3Cat amb episodis sota demanda.";
-    public string DataVersion => "1";
+    public string DataVersion => "native-2";
     public string HomePageUrl => "https://www.3cat.cat/3cat/";
     public ChannelParentalRating ParentalRating => ChannelParentalRating.UsR;
     public virtual bool IsEnabledFor(string userId) => Plugin.Instance?.Configuration.DynamicCatalogue == true;
@@ -61,7 +67,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
     }
 
     public string GetCacheKey(string? userId) =>
-        $"{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 1800}:{CatalogueSignature()}";
+        $"{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 1800}:{CatalogueSignature()}:{userId}";
 
     public InternalChannelFeatures GetChannelFeatures() => new()
     {
@@ -80,6 +86,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         if (!IsEnabledFor(query.UserId.ToString()))
             throw new InvalidOperationException("El canal 3Cat està desactivat.");
 
+        EnsureUserAccess(query.UserId);
         IReadOnlyList<ChannelItemInfo> items;
         var folder = query.FolderId;
         if (ChildrenOnly && !string.IsNullOrEmpty(folder))
@@ -92,7 +99,18 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         }
         if (string.IsNullOrEmpty(folder))
         {
-            items = await GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
+            var catalogue = await GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
+            if (ChildrenOnly) items = catalogue;
+            else
+            {
+                var layout = ReadNativeLayout();
+                items = NativeCatalogueLayout.Root(catalogue, layout.Assigned, layout.StillAtRoot);
+            }
+        }
+        else if (!ChildrenOnly && NativeCatalogueLayout.IsCategory(folder))
+        {
+            var catalogue = await GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
+            items = NativeCatalogueLayout.Contents(folder!, catalogue, ReadNativeLayout().Assigned);
         }
         else if (DynamicIds.TryProgram(folder, out var program))
         {
@@ -149,6 +167,47 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
             items = items.Select(PrefixChildItem).ToArray();
         }
         return new ChannelItemResult { Items = items, TotalRecordCount = items.Count };
+    }
+
+    // Native channels use a single parent per item. Read the actual stored hierarchy,
+    // rather than generating alternate IDs or deleting existing root items during an upgrade.
+    private (Dictionary<string, string> Assigned, HashSet<string> StillAtRoot) ReadNativeLayout()
+    {
+        var assigned = new Dictionary<string, string>(StringComparer.Ordinal);
+        var stillAtRoot = new HashSet<string>(StringComparer.Ordinal);
+        var channelId = _library.GetNewItemId("Channel " + Name, typeof(Channel));
+        var root = _library.GetItemList(new InternalItemsQuery { ParentId = channelId, EnableTotalRecordCount = false });
+        foreach (var item in root.Where(i => i.ChannelId == channelId))
+        {
+            if (NativeCatalogueLayout.IsCategory(item.ExternalId))
+            {
+                foreach (var child in _library.GetItemList(new InternalItemsQuery { ParentId = item.Id, EnableTotalRecordCount = false }))
+                    if (child.ChannelId == channelId && !string.IsNullOrEmpty(child.ExternalId))
+                        assigned[child.ExternalId] = item.ExternalId;
+            }
+            else if (DynamicIds.TryProgram(item.ExternalId, out _) || DynamicIds.TryFilm(item.ExternalId, out _))
+                stillAtRoot.Add(item.ExternalId);
+        }
+        return (assigned, stillAtRoot);
+    }
+
+    private void EnsureUserAccess(Guid userId)
+    {
+        if (userId == Guid.Empty) return; // Jellyfin's internal scheduled indexing.
+        var user = _users.GetUserById(userId);
+        var channel = _library.GetItemById(_library.GetNewItemId("Channel " + Name, typeof(Channel))) as Channel;
+        if (user is null || channel is null || !channel.IsVisible(user))
+            throw new UnauthorizedAccessException("Canal 3Cat no accessible.");
+    }
+
+    public async Task<IEnumerable<ChannelItemInfo>> GetLatestMedia(ChannelLatestMediaSearch request, CancellationToken cancellationToken)
+    {
+        if (!IsEnabledFor(request.UserId ?? string.Empty)) return [];
+        if (Guid.TryParse(request.UserId, out var userId)) EnsureUserAccess(userId);
+        if (ChildrenOnly) return [];
+        var catalogue = await GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
+        return catalogue.Where(i => i.Type == ChannelItemType.Media && i.ContentType == ChannelMediaContentType.Movie)
+            .OrderByDescending(i => i.DateCreated ?? i.PremiereDate).Take(50).ToArray();
     }
 
     private static ChannelItemInfo PrefixChildItem(ChannelItemInfo item)
