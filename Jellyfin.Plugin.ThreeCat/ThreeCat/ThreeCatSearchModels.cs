@@ -112,6 +112,11 @@ public sealed class ThreeCatSearchProgram
     [JsonPropertyName("codis_etics")]
     [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
     public List<ThreeCatLabel>? AgeRatings { get; set; }
+
+    /// <summary>Artwork included in the search result.</summary>
+    [JsonPropertyName("imatges")]
+    [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatImage>))]
+    public List<ThreeCatImage>? Images { get; set; }
 }
 
 /// <summary>
@@ -134,6 +139,7 @@ public sealed class ThreeCatSearchProgram
 /// classification is turned off or the program appears in no known facet. It is the first genre of the
 /// series, so the value the page shows is the value the library filters by.
 /// </param>
+/// <param name="ImageUrl">HTTPS artwork URL from the programme search result.</param>
 /// <param name="Children">
 /// Whether the program is broadcast on the SX3 channels, which is the only audience the search endpoint
 /// publishes. The synchronization reads the audience of every video, so the genre of the series is more
@@ -150,4 +156,5 @@ public sealed record ThreeCatCatalogProgram(
     string? Published,
     bool HasVideo,
     string? Category = null,
-    bool Children = false);
+    bool Children = false,
+    string? ImageUrl = null);
