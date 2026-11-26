@@ -30,6 +30,16 @@ public sealed class DynamicPaginationTests
     }
 
     [Fact]
+    public async Task CompleteCatalogueRejectsDuplicateRowsAcrossPages()
+    {
+        const string response = """{"resposta":{"status":"OK","items":{"item":[{"id":12345,"titol":"Primer","tipologia":"PTVC_PROGRAMA"}]},"paginacio":{"total_pagines":2,"total_items":2}}}""";
+        using var http = new HttpClient(new FixtureHandler(response, response));
+        var client = new ThreeCatClient(http, NullLogger<ThreeCatClient>.Instance);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.ListCompleteProgramsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task StrictEpisodeReadRejectsMissingPage()
     {
         using var http = new HttpClient(new FixtureHandler(
