@@ -398,6 +398,8 @@
                     <label class="threeCatSettingLabel" for="ThreeCatLiveGuide">Guia XMLTV (TDTChannels)</label>
                     <input id="ThreeCatLiveGuide" readonly value="https://www.tdtchannels.com/epg/TV.xml.gz" style="width:100%;box-sizing:border-box" />
                     <p class="threeCatMuted">Comprova la correspondència dels canals amb la guia al tauler de Jellyfin.</p>
+                    <div class="threeCatActions"><button type="button" class="raised emby-button" id="ThreeCatInstallLive">Afegeix el sintonitzador M3U</button><button type="button" class="raised emby-button" id="ThreeCatInstallGuide">Afegeix la guia XMLTV</button></div>
+                    <p id="ThreeCatLiveStatus" role="status" class="threeCatMuted"></p>
                 </details>
                 <details id="ThreeCatLegacySettings" class="threeCatAdvanced">
                     <summary>Configuració avançada</summary>
@@ -874,6 +876,10 @@
             function threeCatLoadVersion() {
                 var portal = document.getElementById("ThreeCatPortalOpen");
                 if (portal) portal.onclick = function () { window.open(ApiClient.getUrl("ThreeCat/Explore/"), "_blank", "noopener,noreferrer"); };
+                var live = document.querySelector('#ThreeCatInstallLive');
+                var guide = document.querySelector('#ThreeCatInstallGuide');
+                if (live) live.onclick = function () { threeCatInstallLive(false); };
+                if (guide) guide.onclick = function () { threeCatInstallLive(true); };
                 var label = document.querySelector('#ThreeCatVersion');
 
                 if (!label) {
@@ -892,6 +898,30 @@
                 }, function () {
                     label.textContent = '';
                 });
+            }
+
+            // Use Jellyfin's native admin API. Never replace or remove other tuners or guide providers.
+            async function threeCatInstallLive(isGuide) {
+                var state = document.querySelector('#ThreeCatLiveStatus');
+                var button = document.querySelector(isGuide ? '#ThreeCatInstallGuide' : '#ThreeCatInstallLive');
+                var url = document.querySelector(isGuide ? '#ThreeCatLiveGuide' : '#ThreeCatLivePlaylist').value;
+                if (!window.confirm(isGuide ? 'Afegir la guia externa de TDTChannels al servidor?' : 'Afegir el sintonitzador 3Cat al servidor?')) return;
+                button.disabled = true;
+                state.textContent = 'Comprovant la configuració de Live TV…';
+                try {
+                    var cfg = await ApiClient.getJSON(ApiClient.getUrl('System/Configuration/livetv'));
+                    var rows = threeCatField(cfg, isGuide ? 'listingProviders' : 'tunerHosts');
+                    if (!Array.isArray(rows)) throw new Error('No es pot verificar la configuració existent.');
+                    if (rows.some(function (x) { return threeCatField(x, isGuide ? 'path' : 'url') === url; })) {
+                        state.textContent = 'Ja està configurat. No s’ha creat cap duplicat.';
+                        return;
+                    }
+                    var model = isGuide ? { Type: 'xmltv', Path: url, EnableAllTuners: true, PreferredLanguage: 'ca' } : { Type: 'm3u', Url: url, FriendlyName: '3Cat', TunerCount: 1 };
+                    await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(isGuide ? 'LiveTv/ListingProviders' : 'LiveTv/TunerHosts'), data: JSON.stringify(model), contentType: 'application/json' });
+                    state.textContent = 'Afegit. Revisa els canals i la correspondència de la guia al tauler de Live TV.';
+                } catch (e) {
+                    state.textContent = 'No s’ha pogut afegir automàticament. Utilitza les URL de dalt al tauler de Live TV.';
+                } finally { button.disabled = false; }
             }
 
             function threeCatStatus(message) {
