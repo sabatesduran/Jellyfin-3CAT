@@ -25,7 +25,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.ThreeCat.Dynamic;
 
 /// <summary>Native, on-demand 3Cat channel. No STRM files are needed.</summary>
-public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfoCallback, ISupportsLatestMedia
+public abstract class ThreeCatChannelBase : IChannel, IHasCacheKey, IRequiresMediaInfoCallback
 {
     private readonly ThreeCatClient _client;
     private readonly IMediaEncoder _encoder;
@@ -43,7 +43,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
     private static Snapshot<ChannelItemInfo>? _catalog;
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
 
-    public ThreeCatDynamicChannel(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths, ILogger<ThreeCatDynamicChannel> logger, ILibraryManager library, IUserManager users)
+    protected ThreeCatChannelBase(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths, ILogger<ThreeCatDynamicChannel> logger, ILibraryManager library, IUserManager users)
     {
         _client = client;
         _encoder = encoder;
@@ -588,4 +588,12 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
 
     private sealed record EpisodeEntry(string Id, int Season, int Number, int Part, string Title,
         DateTimeOffset? Aired, DateTimeOffset? Expires, TimeSpan? Duration, string? Image, bool Duplicate, string? Overview, bool ExplicitChild = false, string? Rating = null);
+}
+
+/// <summary>The main native channel also participates in Jellyfin's latest-media discovery.</summary>
+public sealed class ThreeCatDynamicChannel : ThreeCatChannelBase, ISupportsLatestMedia
+{
+    public ThreeCatDynamicChannel(ThreeCatClient client, IMediaEncoder encoder, IApplicationPaths paths,
+        ILogger<ThreeCatDynamicChannel> logger, ILibraryManager library, IUserManager users)
+        : base(client, encoder, paths, logger, library, users) { }
 }
