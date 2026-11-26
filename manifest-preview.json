@@ -8,12 +8,12 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.13.0.2",
-        "changelog": "Add native 3Cat channel artwork. Runtime validation pending.",
+        "version": "1.13.0.3",
+        "changelog": "Use supplied 3Cat brand artwork for the channel. Runtime validation pending.",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.2/threecat_1.13.0.2.zip",
-        "checksum": "F210C0E3062F9562E18EC2BA36D2A442",
-        "timestamp": "2026-11-26T20:02:03Z"
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.3/threecat_1.13.0.3.zip",
+        "checksum": "75C279CEF958CB7EDBC098EA4DE808D0",
+        "timestamp": "2026-11-26T20:16:28Z"
       }
     ]
   }
