@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Jellyfin.Plugin.ThreeCat.Sync;
+using Jellyfin.Plugin.ThreeCat.Library;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Channels;
@@ -123,6 +124,18 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
             try
             {
                 var programs = await _client.ListCompleteProgramsAsync(ct).ConfigureAwait(false);
+                IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy = null;
+                if (Plugin.Instance?.Configuration.ClassifyPrograms == true)
+                {
+                    try
+                    {
+                        taxonomy = await _client.GetProgramTaxonomyAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "3Cat: no s'ha pogut carregar la classificació.");
+                    }
+                }
                 var fresh = programs.Where(p => p.HasVideo && DynamicIds.Valid(p.Id))
                     .DistinctBy(p => p.Id, StringComparer.Ordinal)
                     .Select(p => new ChannelItemInfo
@@ -130,6 +143,10 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
                         Id = DynamicIds.Program(p.Id), Name = p.Title,
                         Type = ChannelItemType.Folder, FolderType = ChannelFolderType.Series,
                         MediaType = ChannelMediaType.Video, HomePageUrl = p.Url!,
+                        ImageUrl = p.ImageUrl!,
+                        Genres = GetProgrammeGenres(p, taxonomy),
+                        Studios = string.IsNullOrWhiteSpace(p.Channel) ? [] : [p.Channel],
+                        PremiereDate = DateTime.TryParseExact(p.Published, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var published) ? published.ToUniversalTime() : null,
                         ProviderIds = new Dictionary<string, string> { ["threecat"] = p.Id }
                     }).ToArray();
                 if (fresh.Length == 0) throw new InvalidOperationException("Catàleg de 3Cat buit o no disponible.");
@@ -146,6 +163,17 @@ public sealed class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMe
             }
         }
         finally { CatalogGate.Release(); }
+    }
+
+    private static List<string> GetProgrammeGenres(ThreeCatCatalogProgram program, IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy)
+    {
+        var genres = new List<string>();
+        if (program.Children) genres.Add("Infantil");
+        if (taxonomy is not null && taxonomy.TryGetValue(program.Id, out var facets))
+        {
+            genres.AddRange(ProgramClassifier.Classify(facets.Formats, facets.Themes, null).Genres);
+        }
+        return genres.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private async Task<IReadOnlyList<EpisodeEntry>> GetEpisodesAsync(string program, CancellationToken ct)
