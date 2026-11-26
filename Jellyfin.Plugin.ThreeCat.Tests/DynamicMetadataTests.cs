@@ -15,6 +15,18 @@ public sealed class DynamicMetadataTests
         Assert.Null(DynamicAgeRating.FromLabels([new ThreeCatLabel { Id = "CE_UNKNOWN" }]));
     }
 
+    [Theory]
+    [InlineData("Ginoide", true)]
+    [InlineData("Caçadors de bruixes", true)]
+    [InlineData("Tràiler de Creatura", false)]
+    [InlineData("La furgo (tràiler)", false)]
+    public void FilmsIncludeShortsButNotExplicitTrailers(string title, bool expected)
+    {
+        var video = new ThreeCatVideo { Id = "123", Title = title, Typology = "DTY_VIDEO_MM", Duration = TimeSpan.FromMinutes(5),
+            Formats = [new ThreeCatLabel { Id = "PUFF_FILM" }] };
+        Assert.Equal(expected, DynamicFilmPolicy.IsFilm(video));
+    }
+
     [Fact]
     public void ArtworkPrefersExplicitRoleOverLargerOtherImage()
     {
