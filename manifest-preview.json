@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b",
+    "name": "3Cat",
+    "description": "3Cat a la carta: catàleg virtual automàtic i mode de biblioteca .strm original.",
+    "overview": "Fork del plugin de Lowitle. Navegació sota demanda i actualització del catàleg sense afegir programes manualment.",
+    "owner": "sabatesduran",
+    "category": "General",
+    "versions": [
+      {
+        "version": "1.13.0.0",
+        "changelog": "Experimental native 3Cat catalogue. Runtime validation pending.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.0/threecat_1.13.0.0.zip",
+        "checksum": "41FBDBBF68C9DBBC155EAAE2B86D1C60",
+        "timestamp": "2026-11-26T19:40:07Z"
+      }
+    ]
+  }
+]
