@@ -196,7 +196,9 @@ public sealed partial class ThreeCatClient
             hasVideo,
             Children: ProgramClassifier.IsChildren(
                 null,
-                program.Channels?.Select(channel => channel.Id)));
+                program.Channels?.Select(channel => channel.Id)),
+            ImageUrl: program.Images?.Select(image => image.Url)
+                .FirstOrDefault(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps));
     }
 
     /// <summary>
