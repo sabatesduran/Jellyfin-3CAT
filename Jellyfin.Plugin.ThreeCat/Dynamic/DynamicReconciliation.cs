@@ -9,7 +9,7 @@ internal static class DynamicReconciliation
     {
         var entries = previous.DistinctBy(key, StringComparer.Ordinal).ToDictionary(key, StringComparer.Ordinal);
         var next = missing is null ? new Dictionary<string, int>(StringComparer.Ordinal) :
-            missing.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            missing.Where(x => entries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
         foreach (var item in observed)
         {
             var id = key(item);
