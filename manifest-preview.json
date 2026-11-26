@@ -8,12 +8,12 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.13.0.0",
-        "changelog": "Experimental native 3Cat catalogue. Runtime validation pending.",
+        "version": "1.13.0.1",
+        "changelog": "Fix user enumeration API compatibility and isolate favourite refresh. Runtime validation pending.",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.0/threecat_1.13.0.0.zip",
-        "checksum": "41FBDBBF68C9DBBC155EAAE2B86D1C60",
-        "timestamp": "2026-11-26T19:40:07Z"
+        "sourceUrl": "https://github.com/sabatesduran/Jellyfin-3CAT/releases/download/dynamic-preview-1.13.0.1/threecat_1.13.0.1.zip",
+        "checksum": "717E6DC304EE82E26280D13E3E06E2C6",
+        "timestamp": "2026-11-26T19:46:58Z"
       }
     ]
   }
