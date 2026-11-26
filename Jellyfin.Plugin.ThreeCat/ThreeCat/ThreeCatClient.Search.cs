@@ -198,7 +198,8 @@ public sealed partial class ThreeCatClient
                 null,
                 program.Channels?.Select(channel => channel.Id)),
             ImageUrl: program.Images?.Select(image => image.Url)
-                .FirstOrDefault(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps));
+                .FirstOrDefault(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps),
+            Description: program.Description);
     }
 
     /// <summary>
