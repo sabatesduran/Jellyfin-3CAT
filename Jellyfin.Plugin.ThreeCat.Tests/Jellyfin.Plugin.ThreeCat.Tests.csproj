@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>$(ThreeCatTargetFramework)</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.ThreeCat.Tests</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.ThreeCat.Tests</AssemblyName>
     <Nullable>enable</Nullable>
@@ -22,7 +22,7 @@
          assemblies have to be present at run time, not only at compile time. The plugin excludes their
          runtime assets on purpose (the .zip must not ship Jellyfin), which is why the reference is
          repeated here with the default assets. -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
+    <PackageReference Include="Jellyfin.Controller" Version="$(ThreeCatJellyfinVersion)" />
   </ItemGroup>
 
   <ItemGroup>
