@@ -365,6 +365,10 @@
                         <span class="threeCatSettingText"><strong>Canal SX3 independent</strong><span>Mostra programes etiquetats com a SX3. Configura els permisos dels usuaris a Jellyfin.</span></span>
                         <input type="checkbox" id="ThreeCatDynamicSx3" aria-label="Canal SX3 independent" />
                     </label>
+                    <label class="threeCatSettingRow">
+                        <span class="threeCatSettingText"><strong>Enllaç 3Cat al menú web</strong><span>Opcional: afegeix el portal a la navegació de Jellyfin Web sense modificar els fitxers del servidor. Recarrega la pàgina després de desar.</span></span>
+                        <input type="checkbox" id="ThreeCatWebPortalMenu" aria-label="Enllaç al menú web" />
+                    </label>
                     <div id="ThreeCatQualityRow" hidden>
                         <label class="threeCatSettingLabel" for="ThreeCatDynamicQuality">Qualitat preferida</label>
                         <select id="ThreeCatDynamicQuality" class="threeCatSelect" style="width:100%;padding:.6rem">
@@ -2687,6 +2691,7 @@
                         threeCatField(config, 'tvdbPin') || '';
                     document.querySelector('#ThreeCatDynamicCatalogue').checked = threeCatField(config, 'dynamicCatalogue') === true;
                     document.querySelector('#ThreeCatDynamicSx3').checked = threeCatField(config, 'dynamicSx3') === true;
+                    document.querySelector('#ThreeCatWebPortalMenu').checked = threeCatField(config, 'webPortalMenu') === true;
                     document.querySelector('#ThreeCatDynamicQuality').value = threeCatField(config, 'dynamicQuality') || 'auto';
                     document.querySelector('#ThreeCatDisableLegacyMirror').checked = threeCatField(config, 'disableLegacyMirror') === true;
                     document.querySelector('#ThreeCatRefreshInterval').value =
@@ -2782,6 +2787,7 @@
                     }
                     config.DynamicCatalogue = document.querySelector('#ThreeCatDynamicCatalogue').checked;
                     config.DynamicSx3 = document.querySelector('#ThreeCatDynamicSx3').checked;
+                    config.WebPortalMenu = document.querySelector('#ThreeCatWebPortalMenu').checked;
                     config.DynamicQuality = document.querySelector('#ThreeCatDynamicQuality').value || 'auto';
                     config.DisableLegacyMirror = document.querySelector('#ThreeCatDisableLegacyMirror').checked;
                     config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;
