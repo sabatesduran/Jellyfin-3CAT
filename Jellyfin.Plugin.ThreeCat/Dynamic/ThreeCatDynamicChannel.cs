@@ -258,7 +258,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                         Id = DynamicIds.Film(v.Id!), Name = v.Title ?? v.FriendlyName ?? v.Id!,
                         Type = ChannelItemType.Media, MediaType = ChannelMediaType.Video,
                         ContentType = ChannelMediaContentType.Movie, Genres = ["Cinema"], Tags = ExpiryTags(v.Expires),
-                        Overview = PlainText(v.Description)!, OfficialRating = DynamicAgeRating.FromLabels(v.AgeRatings)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
+                        Overview = PlainText(v.Description ?? v.Summary)!, OfficialRating = DynamicAgeRating.FromLabels(v.AgeRatings)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
                         PremiereDate = (v.Broadcast ?? v.Published)?.UtcDateTime,
                         DateCreated = v.Published?.UtcDateTime, EndDate = v.Expires?.UtcDateTime, RunTimeTicks = v.Duration?.Ticks,
                         ProviderIds = new Dictionary<string, string> { ["threecat"] = v.Id! }
@@ -360,7 +360,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                 var slots = EpisodeNumbering.Assign(titles);
                 var fresh = videos.Select((v, i) => new EpisodeEntry(v.Id!, slots[i].Season, slots[i].Episode, slots[i].Part,
                     EpisodeNumbering.StripNumber(titles[i] ?? v.Id!), v.Broadcast ?? v.Published, v.Expires, v.Duration,
-                    ThreeCatSyncService.PickThumbnail(v, null), slots[i].IsDuplicate, PlainText(v.Description),
+                    ThreeCatSyncService.PickThumbnail(v, null), slots[i].IsDuplicate, PlainText(v.Description ?? v.Summary),
                     DynamicEpisodePolicy.HasExplicitChildTarget(v), DynamicAgeRating.FromLabels(v.AgeRatings)))
                     .Where(e => !e.Duplicate).ToArray();
                 if (fresh.Length == 0) throw new InvalidOperationException("Resposta sense episodis vàlids.");
