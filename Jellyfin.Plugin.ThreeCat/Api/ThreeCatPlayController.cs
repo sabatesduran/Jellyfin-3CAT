@@ -19,7 +19,7 @@ namespace Jellyfin.Plugin.ThreeCat.Api;
 /// Endpoints used by the configuration page.
 /// </summary>
 [ApiController]
-[Authorize]
+[Authorize(Policy = "RequiresElevation")]
 [Route("ThreeCat")]
 public sealed class ThreeCatPlayController : ControllerBase
 {
