@@ -27,6 +27,9 @@
                 border: 1px solid rgba(128,128,128,.35); border-radius: 12px;
                 padding: 1.25rem; margin-bottom: 1rem;
             }
+            #ThreeCatConfigPage .threeCatMetrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:1rem 0; }
+            #ThreeCatConfigPage .threeCatMetrics strong { display:block; font-size:1.5rem; }
+            #ThreeCatConfigPage .threeCatMetrics span { display:block; opacity:.7; font-size:.85rem; }
             #ThreeCatConfigPage .threeCatPanel h3 { font-size: 1.12rem; margin: 0 0 1rem; }
             #ThreeCatConfigPage .threeCatSettingLabel { display:block; margin: 0 0 .55rem; }
             #ThreeCatConfigPage #ThreeCatMode {
@@ -334,6 +337,18 @@
                     </div>
                 </section>
 
+                <section class="threeCatPanel" id="ThreeCatDynamicStatusPanel" hidden aria-labelledby="ThreeCatStatusTitle">
+                    <h3 id="ThreeCatStatusTitle">Estat del catàleg</h3>
+                    <p id="ThreeCatHealthState" aria-live="polite">Carregant…</p>
+                    <div class="threeCatMetrics">
+                        <div><strong id="ThreeCatProgrammeCount">—</strong><span>Programes</span></div>
+                        <div><strong id="ThreeCatFilmCount">—</strong><span>Pel·lícules</span></div>
+                        <div><strong id="ThreeCatSx3Count">—</strong><span>SX3</span></div>
+                    </div>
+                    <p class="threeCatMuted" id="ThreeCatLastSuccess"></p>
+                    <p class="threeCatMuted" id="ThreeCatHealthError"></p>
+                    <button is="emby-button" type="button" id="ThreeCatRefreshStatus" class="raised"><span>Comprova l'estat</span></button>
+                </section>
                 <section class="threeCatPanel" id="ThreeCatCommonSettings" aria-labelledby="ThreeCatPlaybackTitle">
                     <h3 id="ThreeCatPlaybackTitle">Contingut</h3>
                     <label class="threeCatSettingRow">
@@ -344,6 +359,20 @@
                         <span class="threeCatSettingText"><strong>Categories</strong><span>Classifica el contingut per gènere i tipus.</span></span>
                         <input type="checkbox" id="ThreeCatClassifyPrograms" aria-label="Categories" />
                     </label>
+                    <label class="threeCatSettingRow" id="ThreeCatSx3Row" hidden>
+                        <span class="threeCatSettingText"><strong>Canal SX3 independent</strong><span>Mostra programes etiquetats com a SX3. Configura els permisos dels usuaris a Jellyfin.</span></span>
+                        <input type="checkbox" id="ThreeCatDynamicSx3" aria-label="Canal SX3 independent" />
+                    </label>
+                    <div id="ThreeCatQualityRow" hidden>
+                        <label class="threeCatSettingLabel" for="ThreeCatDynamicQuality">Qualitat preferida</label>
+                        <select id="ThreeCatDynamicQuality" class="threeCatSelect" style="width:100%;padding:.6rem">
+                            <option value="auto">Automàtica</option>
+                            <option value="1080">Fins a 1080p</option>
+                            <option value="720">Fins a 720p</option>
+                            <option value="480">Fins a 480p</option>
+                        </select>
+                        <p class="threeCatMuted">Si no hi ha la qualitat seleccionada, s'utilitza una de disponible.</p>
+                    </div>
                     <div class="threeCatHint" id="ThreeCatAutomaticHint" hidden>
                         El catàleg s'actualitza automàticament cada hora. Marca els programes com a preferits des de Jellyfin.
                     </div>
@@ -355,6 +384,15 @@
                 </div>
                 <div class="fieldDescription threeCatStatus" id="ThreeCatStatus" role="status" aria-live="polite"></div>
 
+                <details class="threeCatAdvanced">
+                    <summary>Televisió en directe</summary>
+                    <p class="threeCatMuted">Afegeix un sintonitzador M3U al tauler de Live TV de Jellyfin i una font XMLTV. La disponibilitat depèn dels drets de cada emissió i de la ubicació.</p>
+                    <label class="threeCatSettingLabel" for="ThreeCatLivePlaylist">URL de la llista M3U</label>
+                    <input id="ThreeCatLivePlaylist" readonly value="https://raw.githubusercontent.com/sabatesduran/Jellyfin-3CAT/feature/dynamic-catalogue/live/3cat.m3u" style="width:100%;box-sizing:border-box" />
+                    <label class="threeCatSettingLabel" for="ThreeCatLiveGuide">Guia XMLTV (TDTChannels)</label>
+                    <input id="ThreeCatLiveGuide" readonly value="https://www.tdtchannels.com/epg/TV.xml.gz" style="width:100%;box-sizing:border-box" />
+                    <p class="threeCatMuted">Comprova la correspondència dels canals amb la guia al tauler de Jellyfin.</p>
+                </details>
                 <details id="ThreeCatLegacySettings" class="threeCatAdvanced">
                     <summary>Configuració avançada</summary>
                     <p class="threeCatMuted">Pots consultar i desar les opcions originals sense canviar el mode de funcionament. Les opcions de fitxers, carpetes i proveïdors externs només s’apliquen quan la biblioteca manual està activa.</p>
@@ -2522,6 +2560,23 @@
                 return dynamic ? (disableMirror ? 'dynamic' : 'both') : (disableMirror ? 'off' : 'legacy');
             }
 
+            function threeCatLoadHealth() {
+                return ApiClient.getJSON(threeCatUrl('Dynamic/Status')).then(function (status) {
+                    var states = {ready:'Catàleg actualitzat',degraded:'Actualització parcial o error',not_started:'Encara no s’ha actualitzat'};
+                    document.querySelector('#ThreeCatHealthState').textContent = states[threeCatField(status,'state')] || 'Estat desconegut';
+                    ['Programme','Film','Sx3'].forEach(function (name) {
+                        var key = {Programme:'programmes',Film:'films',Sx3:'sx3'}[name];
+                        var value = threeCatField(status,key);
+                        document.querySelector('#ThreeCat'+name+'Count').textContent = value == null ? '—' : String(value);
+                    });
+                    var last = threeCatField(status,'lastSuccess');
+                    document.querySelector('#ThreeCatLastSuccess').textContent = last ? 'Última actualització: '+new Date(last).toLocaleString('ca-ES') : '';
+                    document.querySelector('#ThreeCatHealthError').textContent = threeCatField(status,'error') || '';
+                },function () {
+                    document.querySelector('#ThreeCatHealthState').textContent = 'No s’ha pogut consultar l’estat.';
+                });
+            }
+
             function threeCatApplyMode() {
                 var mode = document.querySelector('#ThreeCatMode').value;
                 var dynamic = mode === 'dynamic' || mode === 'both';
@@ -2536,6 +2591,10 @@
                 });
                 document.querySelector('#ThreeCatCommonSettings').hidden = mode === 'off';
                 document.querySelector('#ThreeCatAutomaticHint').hidden = !dynamic;
+                document.querySelector('#ThreeCatDynamicStatusPanel').hidden = !dynamic;
+                document.querySelector('#ThreeCatSx3Row').hidden = !dynamic;
+                document.querySelector('#ThreeCatQualityRow').hidden = !dynamic;
+                if (dynamic && ThreeCatConfig.loaded) threeCatLoadHealth();
                 document.querySelector('#ThreeCatRunNow').disabled = !ThreeCatConfig.loaded || mode === 'off';
                 document.querySelector('#ThreeCatRunLabel').textContent = dynamic ? 'Actualitza el catàleg' : 'Sincronitza ara';
                 document.querySelector('#ThreeCatModeDescription').textContent = {
@@ -2623,6 +2682,8 @@
                     document.querySelector('#ThreeCatTvdbPin').value =
                         threeCatField(config, 'tvdbPin') || '';
                     document.querySelector('#ThreeCatDynamicCatalogue').checked = threeCatField(config, 'dynamicCatalogue') === true;
+                    document.querySelector('#ThreeCatDynamicSx3').checked = threeCatField(config, 'dynamicSx3') === true;
+                    document.querySelector('#ThreeCatDynamicQuality').value = threeCatField(config, 'dynamicQuality') || 'auto';
                     document.querySelector('#ThreeCatDisableLegacyMirror').checked = threeCatField(config, 'disableLegacyMirror') === true;
                     document.querySelector('#ThreeCatRefreshInterval').value =
                         threeCatInt(threeCatField(config, 'refreshIntervalHours'), 12);
@@ -2716,6 +2777,8 @@
                     config.DeleteObsolete = document.querySelector('#ThreeCatDeleteObsolete').checked;
                     }
                     config.DynamicCatalogue = document.querySelector('#ThreeCatDynamicCatalogue').checked;
+                    config.DynamicSx3 = document.querySelector('#ThreeCatDynamicSx3').checked;
+                    config.DynamicQuality = document.querySelector('#ThreeCatDynamicQuality').value || 'auto';
                     config.DisableLegacyMirror = document.querySelector('#ThreeCatDisableLegacyMirror').checked;
                     config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;
                     config.ClassifyPrograms = document.querySelector('#ThreeCatClassifyPrograms').checked;
@@ -2812,6 +2875,7 @@
                 // while the destination folder is typed.
                 document.querySelector('#ThreeCatDestinationPath').addEventListener('input', threeCatRenderKinds);
                 document.querySelector('#ThreeCatRunNow').addEventListener('click', threeCatRunNow);
+                document.querySelector('#ThreeCatRefreshStatus').addEventListener('click', threeCatLoadHealth);
                 document.querySelector('#ThreeCatListPrograms').addEventListener('click', threeCatLoadAllPrograms);
 
                 document.querySelector('#ThreeCatRefreshDataset').addEventListener('click', function () {
