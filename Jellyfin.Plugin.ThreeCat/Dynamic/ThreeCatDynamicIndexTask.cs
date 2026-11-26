@@ -46,11 +46,21 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
         var channel = channels.Items.FirstOrDefault(c => c.Name == "3Cat a la carta");
         if (channel is null) throw new InvalidOperationException("Canal 3Cat no registrat. Reinicia Jellyfin.");
         await EnsureChannelArtworkAsync(channel, cancellationToken).ConfigureAwait(false);
-        await _manager.GetChannelItemsInternal(new InternalItemsQuery
+        var root = await _manager.GetChannelItemsInternal(new InternalItemsQuery
         {
             ChannelIds = [channel.Id],
             EnableTotalRecordCount = false
         }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+        // Materialize all six category folders immediately. Existing root items are moved
+        // by Jellyfin itself, retaining their canonical GUIDs and user data.
+        foreach (var category in root.Items.OfType<Folder>().Where(f => NativeCatalogueLayout.IsCategory(f.ExternalId)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _manager.GetChannelItemsInternal(new InternalItemsQuery
+            {
+                ParentId = category.Id, ChannelIds = [channel.Id], EnableTotalRecordCount = false
+            }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+        }
         if (Plugin.Instance?.Configuration.DynamicSx3 == true)
         {
             var sx3 = channels.Items.FirstOrDefault(c => c.Name == "SX3 a la carta");
@@ -127,6 +137,7 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
             var query = new InternalItemsQuery(user)
             {
                 Parent = channel,
+                Recursive = true,
                 IncludeItemTypes = [BaseItemKind.Series],
                 IsFavorite = true,
                 EnableTotalRecordCount = false
