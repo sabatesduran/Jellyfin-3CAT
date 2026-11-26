@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
@@ -47,10 +48,23 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
         }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
         progress.Report(30);
 
+        try
+        {
+            await RefreshFavouritesAsync(channel, progress, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "3Cat: catàleg indexat, però no s'han pogut actualitzar els preferits.");
+        }
+        progress.Report(100);
+    }
+
+    private async Task RefreshFavouritesAsync(Channel channel, IProgress<double> progress, CancellationToken cancellationToken)
+    {
         // Query Jellyfin's user data rather than storing a second (shared) favourites list.
         // A union avoids refreshing the same programme more than once.
         var favourites = new Dictionary<Guid, Series>();
-        foreach (var user in _users.Users)
+        foreach (var user in UserEnumerationCompatibility.Read<User>(typeof(IUserManager), _users))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!channel.IsVisible(user)) continue;
