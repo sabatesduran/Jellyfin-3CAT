@@ -253,6 +253,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Show a separate, optional SX3 browsing channel.</summary>
     public bool DynamicSx3 { get; set; }
 
+    /// <summary>Preferred playback height, or auto.</summary>
+    public string DynamicQuality { get; set; } = "auto";
+
     /// <summary>Stop the legacy scheduled mirror without deleting existing files.</summary>
     public bool DisableLegacyMirror { get; set; }
 
