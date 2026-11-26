@@ -1,18 +1,33 @@
+using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.ThreeCat.Dynamic;
 
-/// <summary>Indexes the root on startup and hourly, without fetching all episodes.</summary>
+/// <summary>Indexes the catalogue and refreshes the union of native per-user favourite programmes.</summary>
 public sealed class ThreeCatDynamicIndexTask : IScheduledTask
 {
     private readonly IChannelManager _manager;
-    public ThreeCatDynamicIndexTask(IChannelManager manager) => _manager = manager;
+    private readonly ILibraryManager _library;
+    private readonly IUserManager _users;
+    private readonly ILogger<ThreeCatDynamicIndexTask> _logger;
+
+    public ThreeCatDynamicIndexTask(IChannelManager manager, ILibraryManager library, IUserManager users, ILogger<ThreeCatDynamicIndexTask> logger)
+    {
+        _manager = manager;
+        _library = library;
+        _users = users;
+        _logger = logger;
+    }
+
     public string Name => "Actualitza el catàleg virtual de 3Cat";
     public string Key => "ThreeCatDynamicRootIndex";
-    public string Description => "Indexa programes nous sense carregar-ne els episodis ni descarregar vídeos.";
+    public string Description => "Indexa programes nous i actualitza els episodis dels programes preferits.";
     public string Category => "3Cat";
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
@@ -29,7 +44,59 @@ public sealed class ThreeCatDynamicIndexTask : IScheduledTask
         {
             ChannelIds = [channel.Id],
             EnableTotalRecordCount = false
-        }, progress, cancellationToken).ConfigureAwait(false);
+        }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+        progress.Report(30);
+
+        // Query Jellyfin's user data rather than storing a second (shared) favourites list.
+        // A union avoids refreshing the same programme more than once.
+        var favourites = new Dictionary<Guid, Series>();
+        foreach (var user in _users.Users)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!channel.IsVisible(user)) continue;
+            var query = new InternalItemsQuery(user)
+            {
+                Parent = channel,
+                IncludeItemTypes = [BaseItemKind.Series],
+                IsFavorite = true,
+                EnableTotalRecordCount = false
+            };
+            foreach (var series in _library.GetItemList(query, true).OfType<Series>())
+            {
+                if (series.ChannelId == channel.Id) favourites.TryAdd(series.Id, series);
+            }
+        }
+
+        var completed = 0;
+        foreach (var series in favourites.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                // Use unfiltered child queries when synchronizing: ChannelManager reconciles item deletions.
+                var seasons = await _manager.GetChannelItemsInternal(new InternalItemsQuery
+                {
+                    Parent = series,
+                    ChannelIds = [channel.Id],
+                    EnableTotalRecordCount = false
+                }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+                foreach (var season in seasons.Items.OfType<Season>())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await _manager.GetChannelItemsInternal(new InternalItemsQuery
+                    {
+                        Parent = season,
+                        ChannelIds = [channel.Id],
+                        EnableTotalRecordCount = false
+                    }, new Progress<double>(), cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "3Cat: no s'ha pogut actualitzar un programa preferit ({Id}).", series.Id);
+            }
+            progress.Report(30 + 70d * ++completed / favourites.Count);
+        }
         progress.Report(100);
     }
 
