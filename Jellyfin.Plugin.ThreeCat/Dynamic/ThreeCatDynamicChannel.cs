@@ -131,6 +131,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                     RunTimeTicks = e.Duration?.Ticks,
                     ImageUrl = e.Image!,
                     Overview = e.Overview!,
+                    Tags = ExpiryTags(e.Expires),
                     DateCreated = e.Aired?.UtcDateTime,
                     EndDate = e.Expires?.UtcDateTime,
                     ProviderIds = new Dictionary<string, string> { ["threecat"] = e.Id }
@@ -162,6 +163,9 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
         var catalogue = await GetCatalogueAsync(ct).ConfigureAwait(false);
         return catalogue.FirstOrDefault(p => p.Id == DynamicIds.Program(program))?.Name ?? program;
     }
+
+    private static List<string> ExpiryTags(DateTimeOffset? expires) => expires is { } value
+        ? ["3Cat:caduca:" + value.ToString("O", CultureInfo.InvariantCulture)] : [];
 
     private static bool IsAvailable(EpisodeEntry entry) => DynamicEpisodePolicy.IsAvailable(entry.Expires, DateTimeOffset.UtcNow);
 
@@ -251,7 +255,7 @@ public class ThreeCatDynamicChannel : IChannel, IHasCacheKey, IRequiresMediaInfo
                     {
                         Id = DynamicIds.Film(v.Id!), Name = v.Title ?? v.FriendlyName ?? v.Id!,
                         Type = ChannelItemType.Media, MediaType = ChannelMediaType.Video,
-                        ContentType = ChannelMediaContentType.Movie, Genres = ["Cinema"],
+                        ContentType = ChannelMediaContentType.Movie, Genres = ["Cinema"], Tags = ExpiryTags(v.Expires),
                         Overview = PlainText(v.Description)!, ImageUrl = ThreeCatSyncService.PickThumbnail(v, null)!,
                         PremiereDate = (v.Broadcast ?? v.Published)?.UtcDateTime,
                         DateCreated = v.Published?.UtcDateTime, EndDate = v.Expires?.UtcDateTime, RunTimeTicks = v.Duration?.Ticks,
